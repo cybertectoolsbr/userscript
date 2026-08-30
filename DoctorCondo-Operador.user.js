@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.13
+// @version      4.5.14
 // @author       CybertevTools
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -78,6 +78,94 @@
         body.dc-operator-topbar-active .main-sidebar {
             top: 40px !important;
             min-height: calc(100% - 40px) !important;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            body.dc-sidebar-always-compact .nav-sidebar,
+            body.dc-sidebar-always-compact .nav-sidebar > .nav-header,
+            body.dc-sidebar-always-compact .nav-sidebar .nav-link {
+                white-space: nowrap;
+            }
+
+            body.dc-sidebar-always-compact .content-wrapper,
+            body.dc-sidebar-always-compact .main-footer,
+            body.dc-sidebar-always-compact .main-header {
+                margin-left: 4.6rem !important;
+            }
+
+            body.dc-sidebar-always-compact .nav-sidebar .nav-header {
+                display: none;
+            }
+
+            body.dc-sidebar-always-compact
+                .sidebar .nav-sidebar .nav-link p {
+                width: 0;
+                margin-left: -10px;
+                white-space: nowrap;
+                visibility: hidden;
+            }
+
+            body.dc-sidebar-always-compact .brand-text {
+                margin-left: -10px;
+                visibility: hidden;
+            }
+
+            body.dc-sidebar-always-compact .main-sidebar,
+            body.dc-sidebar-always-compact .main-sidebar::before {
+                width: 4.6rem !important;
+                margin-left: 0 !important;
+            }
+
+            body.dc-sidebar-always-compact .main-sidebar {
+                overflow-x: hidden;
+                box-shadow: none !important;
+            }
+
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand):hover,
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand).sidebar-focused {
+                width: 250px !important;
+                box-shadow: 0 0 12px rgba(0, 0, 0, .28) !important;
+            }
+
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand):hover .brand-link,
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand).sidebar-focused
+                .brand-link {
+                width: 250px !important;
+            }
+
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand):hover
+                .sidebar .nav-sidebar .nav-link p,
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand).sidebar-focused
+                .sidebar .nav-sidebar .nav-link p,
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand):hover .brand-text,
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand).sidebar-focused
+                .brand-text {
+                display: inline-block;
+                width: auto;
+                margin-left: 0;
+                visibility: visible;
+            }
+
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand):hover
+                .nav-sidebar > .nav-item > .nav-link > span,
+            body.dc-sidebar-always-compact
+                .main-sidebar:not(.sidebar-no-expand).sidebar-focused
+                .nav-sidebar > .nav-item > .nav-link > span {
+                display: inline-block !important;
+            }
+
+            body.dc-sidebar-always-compact #sidebar-overlay {
+                display: none !important;
+            }
         }
 
         body.dc-operator-topbar-active .access-log-side-bar {
@@ -677,6 +765,7 @@
     let cancelarLote = false;
     let moradorEmProcessamento = false;
     let observador = null;
+    let observadorSidebar = null;
     let processandoEntregaChaves = false;
     let cancelarEntregaChaves = false;
     let abrindoEntradaVeiculos = false;
@@ -832,6 +921,53 @@
         style.id = 'dc-collapsible-sections-style';
         style.textContent = CSS;
         document.head.appendChild(style);
+    }
+
+    function dispositivoPermiteHoverNaSidebar() {
+        return Boolean(
+            window.matchMedia &&
+            window.matchMedia('(hover: hover) and (pointer: fine)').matches
+        );
+    }
+
+    function garantirSidebarCompacta() {
+        if (!document.body) return;
+
+        const ativar = dispositivoPermiteHoverNaSidebar();
+
+        document.body.classList.toggle(
+            'dc-sidebar-always-compact',
+            ativar
+        );
+
+        if (!ativar) return;
+
+        document.body.classList.add('sidebar-mini', 'sidebar-collapse');
+        document.body.classList.remove('sidebar-open');
+    }
+
+    function iniciarObservadorSidebar() {
+        if (observadorSidebar || !document.body) return;
+
+        observadorSidebar = new MutationObserver(function () {
+            if (!dispositivoPermiteHoverNaSidebar()) return;
+
+            const classes = document.body.classList;
+            const precisaCorrigir =
+                !classes.contains('dc-sidebar-always-compact') ||
+                !classes.contains('sidebar-mini') ||
+                !classes.contains('sidebar-collapse') ||
+                classes.contains('sidebar-open');
+
+            if (precisaCorrigir) {
+                window.requestAnimationFrame(garantirSidebarCompacta);
+            }
+        });
+
+        observadorSidebar.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
     }
 
     function obterSecaoPortoes() {
@@ -3831,6 +3967,7 @@
 
     function iniciar() {
         instalarEstilo();
+        garantirSidebarCompacta();
         criarControles();
         aplicarEstados();
         prepararAtalhosOperador();
@@ -3916,6 +4053,7 @@
         }
 
         iniciarObservador();
+        iniciarObservadorSidebar();
         iniciar();
     }
 
