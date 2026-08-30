@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.10
+// @version      4.5.11
 // @author       CybertevTools
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -1049,59 +1049,30 @@
         } : null;
     }
 
-    function navegarParaRegistroAcesso() {
+    function obterRotaDoctorCondo(tela) {
         const contexto = obterContextoCondominio();
 
-        if (!contexto) {
-            window.alert(
-                'Selecione primeiro o condomínio em que deseja registrar ' +
-                'o acesso.'
-            );
-            return;
+        if (contexto) {
+            return contexto.base + '/' + tela;
         }
 
-        window.location.hash = contexto.base + '/guest_new_access';
+        return '#/' + tela + (tela === 'guest_new_access' ? '/' : '');
+    }
+
+    function navegarParaRegistroAcesso() {
+        window.location.hash = obterRotaDoctorCondo('guest_new_access');
     }
 
     function navegarParaCorrespondencias() {
-        const contexto = obterContextoCondominio();
-
-        if (!contexto) {
-            window.alert(
-                'Selecione primeiro o condomínio em que deseja consultar ' +
-                'as correspondências.'
-            );
-            return;
-        }
-
-        window.location.hash = contexto.base + '/packages';
+        window.location.hash = obterRotaDoctorCondo('packages');
     }
 
     function navegarParaReservas() {
-        const contexto = obterContextoCondominio();
-
-        if (!contexto) {
-            window.alert(
-                'Selecione primeiro o condomínio em que deseja consultar ' +
-                'as reservas.'
-            );
-            return;
-        }
-
-        window.location.hash = contexto.base + '/bookings';
+        window.location.hash = obterRotaDoctorCondo('bookings');
     }
 
     async function abrirEntradaVeiculosGlobal() {
         if (abrindoEntradaVeiculos) return;
-
-        const contexto = obterContextoCondominio();
-        if (!contexto) {
-            window.alert(
-                'Selecione primeiro o condomínio em que deseja abrir ' +
-                'a Entrada de Veículos.'
-            );
-            return;
-        }
 
         abrindoEntradaVeiculos = true;
         prepararAtalhosOperador();
@@ -1110,8 +1081,9 @@
             let original = localizarBotaoEntradaVeiculos();
 
             if (!original) {
-                window.location.hash =
-                    contexto.base + '/guest_new_access';
+                window.location.hash = obterRotaDoctorCondo(
+                    'guest_new_access'
+                );
                 original = await aguardarCondicao(function () {
                     return localizarBotaoEntradaVeiculos();
                 }, 10000);
@@ -1761,13 +1733,7 @@
         const fabAntigo = document.querySelector('#dc-vehicle-entry-fab');
         if (fabAntigo) fabAntigo.remove();
 
-        const contexto = obterContextoCondominio();
         let atalhos = document.querySelector('#dc-operator-shortcuts');
-
-        if (!contexto) {
-            removerFaixaAtalhosOperador();
-            return;
-        }
 
         const host = obterHostAtalhosOperador();
         if (!host) return;
@@ -3866,6 +3832,7 @@
     window.addEventListener('resize', agendarAtualizacao, {
         passive: true
     });
+    window.addEventListener('hashchange', agendarAtualizacao);
 
     setTimeout(iniciarAplicacao, 800);
     setTimeout(iniciarAplicacao, 2500);
