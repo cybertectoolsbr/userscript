@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.12
+// @version      4.5.13
 // @author       CybertevTools
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -16,6 +16,7 @@
 
     const MULTISERVI_URL =
         'https://gestaopro--studio-3133796255-61262.us-east4.hosted.app/';
+    const CHAVE_ROTA_CAMERA_PLACA = 'dc-operator-plate-camera-route';
 
     const CSS = `
         .dc-section-collapsed {
@@ -1074,6 +1075,77 @@
         window.location.hash = obterRotaDoctorCondo('bookings');
     }
 
+    function normalizarRotaCameraPlaca(valor) {
+        const texto = String(valor || '').trim();
+        if (!texto) return null;
+
+        let url;
+        try {
+            url = new URL(texto, window.location.origin);
+        } catch (erro) {
+            return null;
+        }
+
+        if (url.origin !== window.location.origin) return null;
+
+        const rota = url.hash;
+        if (!/^#\/c\/\d+\/\d+\/cameras\/\d+\/view\/?$/.test(rota)) {
+            return null;
+        }
+
+        return rota.replace(/\/$/, '');
+    }
+
+    function obterRotaCameraPlacaSalva() {
+        try {
+            return normalizarRotaCameraPlaca(
+                window.localStorage.getItem(CHAVE_ROTA_CAMERA_PLACA)
+            );
+        } catch (erro) {
+            return null;
+        }
+    }
+
+    function navegarParaCameraPlaca(forcarConfiguracao) {
+        const rotaSalva = obterRotaCameraPlacaSalva();
+
+        if (rotaSalva && !forcarConfiguracao) {
+            window.location.hash = rotaSalva;
+            return;
+        }
+
+        const rotaAtual = normalizarRotaCameraPlaca(window.location.href);
+        const sugestao = rotaSalva || rotaAtual || '';
+        const informado = window.prompt(
+            'Cole o endereço completo da câmera de leitura de placa:',
+            sugestao
+                ? window.location.origin + '/' + sugestao
+                : ''
+        );
+
+        if (informado === null) return;
+
+        const rota = normalizarRotaCameraPlaca(informado);
+        if (!rota) {
+            window.alert(
+                'Endereço inválido. Use uma tela do DoctorCondo no formato ' +
+                '#/c/.../.../cameras/.../view.'
+            );
+            return;
+        }
+
+        try {
+            window.localStorage.setItem(CHAVE_ROTA_CAMERA_PLACA, rota);
+        } catch (erro) {
+            window.alert(
+                'A câmera será aberta, mas o navegador não permitiu salvar ' +
+                'o atalho para os próximos acessos.'
+            );
+        }
+
+        window.location.hash = rota;
+    }
+
     async function abrirEntradaVeiculosGlobal() {
         if (abrindoEntradaVeiculos) return;
 
@@ -1790,6 +1862,15 @@
                 '<i class="fa fa-external-link"></i>',
                 false
             ));
+            const verPlaca = criarAtalhoOperador(
+                'ver-placa',
+                'VER PLACA',
+                '<i class="fa fa-camera"></i>',
+                false
+            );
+            verPlaca.title =
+                'VER PLACA — use Shift + clique para trocar a câmera';
+            atalhos.appendChild(verPlaca);
 
             atalhos.addEventListener('click', function (evento) {
                 const botao = evento.target.closest(
@@ -1822,6 +1903,9 @@
                         '_blank',
                         'noopener,noreferrer'
                     );
+                    break;
+                case 'ver-placa':
+                    navegarParaCameraPlaca(evento.shiftKey);
                     break;
                 }
             });
