@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.17
+// @version      4.5.18
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -25,10 +25,14 @@
 
     function iniciarModoCameraEmQuadro() {
         function aplicarEstilo() {
-            if (!document.head) {
+            if (!document.documentElement || !document.head) {
                 window.setTimeout(aplicarEstilo, 50);
                 return;
             }
+
+            document.documentElement.classList.add(
+                'dc-plate-frame-mode'
+            );
 
             if (document.querySelector('#dc-plate-frame-style')) return;
 
@@ -45,21 +49,27 @@
                     zoom: .82;
                 }
 
-                #dc-operator-topbar,
-                #dc-operator-page-spacer,
-                .main-header,
-                .main-sidebar,
-                .access-log-side-bar,
-                .content-header,
-                .main-footer,
-                #sidebar-overlay {
+                html.dc-plate-frame-mode body #dc-operator-topbar,
+                html.dc-plate-frame-mode body #dc-operator-page-spacer,
+                html.dc-plate-frame-mode body .main-header,
+                html.dc-plate-frame-mode body .main-sidebar,
+                html.dc-plate-frame-mode body .control-sidebar,
+                html.dc-plate-frame-mode body .access-log-side-bar,
+                html.dc-plate-frame-mode body .content-header,
+                html.dc-plate-frame-mode body .main-footer,
+                html.dc-plate-frame-mode body #sidebar-overlay {
                     display: none !important;
                 }
 
-                .content-wrapper {
+                html.dc-plate-frame-mode body .content-wrapper,
+                html.dc-plate-frame-mode
+                    body.control-sidebar-open .content-wrapper,
+                html.dc-plate-frame-mode
+                    body.control-sidebar-slide-open .content-wrapper {
                     width: auto !important;
                     min-height: 100vh !important;
                     margin: 0 !important;
+                    margin-right: 0 !important;
                     padding: 0 !important;
                 }
             `;
@@ -1882,6 +1892,9 @@
         try {
             const documento = quadro.contentDocument;
             if (!documento || !documento.head) return;
+            documento.documentElement.classList.add(
+                'dc-plate-frame-mode'
+            );
             if (documento.querySelector('#dc-plate-parent-frame-style')) {
                 return;
             }
@@ -1899,21 +1912,27 @@
                     zoom: .82;
                 }
 
-                #dc-operator-topbar,
-                #dc-operator-page-spacer,
-                .main-header,
-                .main-sidebar,
-                .access-log-side-bar,
-                .content-header,
-                .main-footer,
-                #sidebar-overlay {
+                html.dc-plate-frame-mode body #dc-operator-topbar,
+                html.dc-plate-frame-mode body #dc-operator-page-spacer,
+                html.dc-plate-frame-mode body .main-header,
+                html.dc-plate-frame-mode body .main-sidebar,
+                html.dc-plate-frame-mode body .control-sidebar,
+                html.dc-plate-frame-mode body .access-log-side-bar,
+                html.dc-plate-frame-mode body .content-header,
+                html.dc-plate-frame-mode body .main-footer,
+                html.dc-plate-frame-mode body #sidebar-overlay {
                     display: none !important;
                 }
 
-                .content-wrapper {
+                html.dc-plate-frame-mode body .content-wrapper,
+                html.dc-plate-frame-mode
+                    body.control-sidebar-open .content-wrapper,
+                html.dc-plate-frame-mode
+                    body.control-sidebar-slide-open .content-wrapper {
                     width: auto !important;
                     min-height: 100vh !important;
                     margin: 0 !important;
+                    margin-right: 0 !important;
                     padding: 0 !important;
                 }
             `;
