@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.11
+// @version      4.5.12
 // @author       CybertevTools
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -13,6 +13,9 @@
 
 (function () {
     'use strict';
+
+    const MULTISERVI_URL =
+        'https://gestaopro--studio-3133796255-61262.us-east4.hosted.app/';
 
     const CSS = `
         .dc-section-collapsed {
@@ -1781,6 +1784,12 @@
                 '<i class="fa fa-calendar"></i>',
                 false
             ));
+            atalhos.appendChild(criarAtalhoOperador(
+                'multiservi',
+                'MULTISERVI',
+                '<i class="fa fa-external-link"></i>',
+                false
+            ));
 
             atalhos.addEventListener('click', function (evento) {
                 const botao = evento.target.closest(
@@ -1806,6 +1815,13 @@
                     break;
                 case 'horarios':
                     abrirModalHorarios();
+                    break;
+                case 'multiservi':
+                    window.open(
+                        MULTISERVI_URL,
+                        '_blank',
+                        'noopener,noreferrer'
+                    );
                     break;
                 }
             });
