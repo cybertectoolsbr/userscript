@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.14
+// @version      4.5.15
 // @author       CybertevTools
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -429,6 +429,114 @@
             border-color: #167a3f;
         }
 
+        .dc-tower-source-button {
+            display: none !important;
+        }
+
+        #dc-towers-modal-backdrop {
+            position: fixed;
+            z-index: 2000000;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            padding: 18px;
+            background: rgba(0, 0, 0, .58);
+        }
+
+        #dc-towers-modal {
+            display: flex;
+            flex-direction: column;
+            width: min(760px, calc(100vw - 36px));
+            max-height: calc(100vh - 36px);
+            overflow: hidden;
+            background: #ffffff;
+            border: 1px solid #9bb8c1;
+            border-radius: 4px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, .35);
+        }
+
+        #dc-towers-modal .dc-towers-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 11px 14px;
+            color: #ffffff;
+            background: #58abc3;
+        }
+
+        #dc-towers-modal .dc-towers-modal-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        #dc-towers-modal .dc-towers-modal-close-x {
+            min-width: 30px;
+            min-height: 30px;
+            padding: 2px 8px;
+            color: #ffffff;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, .8);
+            border-radius: 3px;
+        }
+
+        #dc-towers-modal .dc-towers-modal-body {
+            overflow-y: auto;
+            padding: 14px;
+        }
+
+        #dc-towers-modal .dc-towers-warning {
+            margin: 0 0 12px;
+            padding: 9px 11px;
+            color: #59420d;
+            background: #fff4d2;
+            border: 1px solid #eed183;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        #dc-towers-modal .dc-towers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+        }
+
+        #dc-towers-modal .dc-tower-modal-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 54px;
+            padding: 6px 10px;
+            white-space: normal;
+        }
+
+        #dc-towers-modal .dc-tower-modal-button > .d-flex {
+            width: 100%;
+            justify-content: center;
+        }
+
+        #dc-towers-modal .dc-tower-modal-button .col {
+            flex: 0 1 auto;
+            font-size: 12px !important;
+            font-weight: 600;
+        }
+
+        #dc-towers-modal .dc-tower-modal-button:focus-visible {
+            outline: 2px solid #1f5f73;
+            outline-offset: 2px;
+        }
+
+        #dc-towers-modal .dc-towers-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px 14px;
+            background: #f8fbfc;
+            border-top: 1px solid #d9e8ed;
+        }
+
         body.dc-side-access-collapsed .access-log-side-bar {
             display: none !important;
         }
@@ -769,7 +877,9 @@
     let processandoEntregaChaves = false;
     let cancelarEntregaChaves = false;
     let abrindoEntradaVeiculos = false;
+    let abrindoModalTorres = false;
     let ultimoFocoModalHorarios = null;
+    let ultimoFocoModalTorres = null;
 
     const pacotesPorCodigo = new Map();
     const detalhesPacotes = new Map();
@@ -1314,6 +1424,196 @@
             );
         } finally {
             abrindoEntradaVeiculos = false;
+            prepararAtalhosOperador();
+        }
+    }
+
+    function botaoEhDeEntradaDeTorre(botao) {
+        if (!botao || botao.closest('#dc-towers-modal-backdrop')) {
+            return false;
+        }
+
+        return /^entrada torre\b/.test(
+            normalizarTexto(botao.textContent)
+        );
+    }
+
+    function localizarBotoesTorres() {
+        return Array.from(document.querySelectorAll(
+            '.access-control-btn-bar-button'
+        )).filter(botaoEhDeEntradaDeTorre);
+    }
+
+    function prepararBotoesTorres() {
+        document.querySelectorAll('.access-control-btn-bar-button')
+            .forEach(function (botao) {
+                botao.classList.toggle(
+                    'dc-tower-source-button',
+                    botaoEhDeEntradaDeTorre(botao)
+                );
+            });
+    }
+
+    function fecharModalTorres() {
+        const fundo = document.querySelector(
+            '#dc-towers-modal-backdrop'
+        );
+        if (!fundo) return;
+
+        fundo.remove();
+        document.removeEventListener('keydown', tratarTeclaModalTorres);
+
+        if (
+            ultimoFocoModalTorres &&
+            ultimoFocoModalTorres.isConnected
+        ) {
+            ultimoFocoModalTorres.focus();
+        }
+
+        ultimoFocoModalTorres = null;
+    }
+
+    function tratarTeclaModalTorres(evento) {
+        if (evento.key === 'Escape') {
+            fecharModalTorres();
+        }
+    }
+
+    function criarModalTorres(botoesOriginais) {
+        fecharModalTorres();
+
+        ultimoFocoModalTorres = document.activeElement;
+
+        const fundo = document.createElement('div');
+        fundo.id = 'dc-towers-modal-backdrop';
+        fundo.innerHTML = `
+            <section id="dc-towers-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="dc-towers-modal-title">
+                <header class="dc-towers-modal-header">
+                    <h2 id="dc-towers-modal-title"
+                        class="dc-towers-modal-title">
+                        <i class="fa fa-building" aria-hidden="true"></i>
+                        Entradas das torres
+                    </h2>
+                    <button type="button"
+                        class="dc-towers-modal-close-x"
+                        aria-label="Fechar entradas das torres">
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="dc-towers-modal-body">
+                    <p class="dc-towers-warning">
+                        <strong>Atenção:</strong> confirme a torre antes de
+                        clicar. Cada opção aciona o respectivo botão oficial
+                        do DoctorCondo.
+                    </p>
+                    <div class="dc-towers-grid"
+                        aria-label="Botões oficiais das torres"></div>
+                </div>
+                <footer class="dc-towers-modal-footer">
+                    <button type="button"
+                        class="dc-towers-modal-close btn btn-default">
+                        Fechar
+                    </button>
+                </footer>
+            </section>
+        `;
+
+        const grade = fundo.querySelector('.dc-towers-grid');
+
+        botoesOriginais.forEach(function (original) {
+            const proxy = document.createElement('button');
+            proxy.type = 'button';
+            proxy.className = 'btn btn-default dc-tower-modal-button';
+            proxy.innerHTML = original.innerHTML;
+            proxy.disabled = botaoEstaDesativado(original);
+
+            const rotulo = original.textContent.replace(/\s+/g, ' ').trim();
+            proxy.title = rotulo;
+            proxy.setAttribute('aria-label', rotulo);
+
+            proxy.addEventListener('click', function () {
+                if (!original.isConnected) {
+                    window.alert(
+                        'O botão oficial desta torre não está mais ' +
+                        'disponível. Abra TORRES novamente.'
+                    );
+                    return;
+                }
+
+                if (botaoEstaDesativado(original)) {
+                    window.alert(
+                        'O botão oficial "' + rotulo + '" está desativado.'
+                    );
+                    return;
+                }
+
+                fecharModalTorres();
+                original.click();
+            });
+
+            grade.appendChild(proxy);
+        });
+
+        fundo.addEventListener('click', function (evento) {
+            const alvo = evento.target instanceof Element
+                ? evento.target
+                : null;
+
+            if (
+                alvo === fundo ||
+                (alvo && alvo.closest(
+                    '.dc-towers-modal-close, .dc-towers-modal-close-x'
+                ))
+            ) {
+                fecharModalTorres();
+            }
+        });
+
+        document.body.appendChild(fundo);
+        document.addEventListener('keydown', tratarTeclaModalTorres);
+
+        const primeiro = grade.querySelector(
+            '.dc-tower-modal-button:not(:disabled)'
+        );
+        const fechar = fundo.querySelector('.dc-towers-modal-close-x');
+        (primeiro || fechar).focus();
+    }
+
+    async function abrirModalTorres() {
+        if (abrindoModalTorres) return;
+
+        abrindoModalTorres = true;
+        prepararAtalhosOperador();
+
+        try {
+            let botoes = localizarBotoesTorres();
+
+            if (!botoes.length) {
+                const rota = obterRotaDoctorCondo('guest_new_access');
+                const atual = window.location.hash.replace(/\/$/, '');
+
+                if (atual !== rota.replace(/\/$/, '')) {
+                    window.location.hash = rota;
+                }
+
+                botoes = await aguardarCondicao(function () {
+                    const encontrados = localizarBotoesTorres();
+                    return encontrados.length ? encontrados : null;
+                }, 10000);
+            }
+
+            prepararBotoesTorres();
+            criarModalTorres(botoes);
+        } catch (erro) {
+            window.alert(
+                'Não foi possível carregar as entradas das torres.\n\n' +
+                (erro.message || 'Erro desconhecido.')
+            );
+        } finally {
+            abrindoModalTorres = false;
             prepararAtalhosOperador();
         }
     }
@@ -1963,6 +2263,12 @@
                 true
             ));
             atalhos.appendChild(criarAtalhoOperador(
+                'torres',
+                'TORRES',
+                '<i class="fa fa-building"></i>',
+                false
+            ));
+            atalhos.appendChild(criarAtalhoOperador(
                 'registrar',
                 'Registrar',
                 '<i class="fa fa-user-plus"></i>',
@@ -2018,6 +2324,9 @@
                 case 'portao':
                     abrirEntradaVeiculosGlobal();
                     break;
+                case 'torres':
+                    abrirModalTorres();
+                    break;
                 case 'registrar':
                     navegarParaRegistroAcesso();
                     break;
@@ -2067,6 +2376,15 @@
         abrirPortao.setAttribute(
             'aria-busy',
             String(abrindoEntradaVeiculos)
+        );
+
+        const torres = atalhos.querySelector(
+            '[data-dc-operator-action="torres"]'
+        );
+        torres.disabled = abrindoModalTorres;
+        torres.setAttribute(
+            'aria-busy',
+            String(abrindoModalTorres)
         );
     }
 
@@ -3971,6 +4289,7 @@
         criarControles();
         aplicarEstados();
         prepararAtalhosOperador();
+        prepararBotoesTorres();
         prepararSaidasEmLote();
         prepararAcessosMoradores();
         prepararPreviewsCorrespondencias();
@@ -3997,6 +4316,7 @@
 
             aplicarEstados();
             prepararAtalhosOperador();
+            prepararBotoesTorres();
             prepararSaidasEmLote();
             prepararAcessosMoradores();
             prepararPreviewsCorrespondencias();
