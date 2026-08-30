@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.15
+// @version      4.5.16
 // @author       CybertevTools
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -17,6 +17,10 @@
     const MULTISERVI_URL =
         'https://gestaopro--studio-3133796255-61262.us-east4.hosted.app/';
     const CHAVE_ROTA_CAMERA_PLACA = 'dc-operator-plate-camera-route';
+    const CHAVE_NOTAS_OPERADOR = 'dc-operator-notes-v1';
+    const CHAVE_RASCUNHO_NOTAS_OPERADOR = 'dc-operator-notes-draft-v1';
+    const LIMITE_NOTAS_OPERADOR = 200;
+    const LIMITE_CARACTERES_NOTA = 4000;
 
     const CSS = `
         .dc-section-collapsed {
@@ -537,6 +541,187 @@
             border-top: 1px solid #d9e8ed;
         }
 
+        #dc-notes-modal-backdrop {
+            position: fixed;
+            z-index: 2000000;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            padding: 18px;
+            background: rgba(0, 0, 0, .58);
+        }
+
+        #dc-notes-modal {
+            display: flex;
+            flex-direction: column;
+            width: min(860px, calc(100vw - 36px));
+            max-height: calc(100vh - 36px);
+            overflow: hidden;
+            background: #ffffff;
+            border: 1px solid #9bb8c1;
+            border-radius: 4px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, .35);
+        }
+
+        #dc-notes-modal .dc-notes-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 11px 14px;
+            color: #ffffff;
+            background: #58abc3;
+        }
+
+        #dc-notes-modal .dc-notes-modal-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        #dc-notes-modal .dc-notes-modal-close-x {
+            min-width: 30px;
+            min-height: 30px;
+            padding: 2px 8px;
+            color: #ffffff;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, .8);
+            border-radius: 3px;
+        }
+
+        #dc-notes-modal .dc-notes-modal-body {
+            overflow-y: auto;
+            padding: 14px;
+        }
+
+        #dc-notes-modal .dc-notes-privacy {
+            margin: 0 0 12px;
+            padding: 9px 11px;
+            color: #59420d;
+            background: #fff4d2;
+            border: 1px solid #eed183;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        #dc-notes-modal .dc-notes-label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        #dc-notes-modal .dc-notes-input {
+            min-height: 112px;
+            resize: vertical;
+        }
+
+        #dc-notes-modal .dc-notes-composer-actions,
+        #dc-notes-modal .dc-notes-history-header,
+        #dc-notes-modal .dc-note-history-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 7px;
+        }
+
+        #dc-notes-modal .dc-notes-composer-actions {
+            justify-content: space-between;
+            margin-top: 7px;
+        }
+
+        #dc-notes-modal .dc-notes-counter {
+            color: #6c757d;
+            font-size: 11px;
+        }
+
+        #dc-notes-modal .dc-notes-status {
+            min-height: 20px;
+            margin: 7px 0 0;
+            color: #327386;
+            font-size: 12px;
+        }
+
+        #dc-notes-modal .dc-notes-history-header {
+            justify-content: space-between;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #d7e2e6;
+        }
+
+        #dc-notes-modal .dc-notes-history-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        #dc-notes-modal .dc-notes-history {
+            display: grid;
+            gap: 8px;
+            margin-top: 9px;
+        }
+
+        #dc-notes-modal .dc-notes-empty {
+            margin: 0;
+            padding: 18px;
+            color: #6c757d;
+            text-align: center;
+            background: #f8fbfc;
+            border: 1px dashed #b8cbd1;
+            border-radius: 3px;
+        }
+
+        #dc-notes-modal .dc-note-history-item {
+            padding: 10px 11px;
+            background: #ffffff;
+            border: 1px solid #cbd8dc;
+            border-left: 4px solid #58abc3;
+            border-radius: 3px;
+        }
+
+        #dc-notes-modal .dc-note-history-meta {
+            margin-bottom: 6px;
+            color: #58727a;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        #dc-notes-modal .dc-note-history-text {
+            margin: 0 0 9px;
+            overflow-wrap: anywhere;
+            color: #333333;
+            font: inherit;
+            white-space: pre-wrap;
+        }
+
+        #dc-notes-modal .dc-note-history-actions {
+            justify-content: flex-end;
+        }
+
+        #dc-notes-modal .dc-notes-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px 14px;
+            background: #f8fbfc;
+            border-top: 1px solid #d9e8ed;
+        }
+
+        @media (max-width: 600px) {
+            #dc-notes-modal-backdrop {
+                padding: 8px;
+            }
+
+            #dc-notes-modal {
+                width: calc(100vw - 16px);
+                max-height: calc(100vh - 16px);
+            }
+
+            #dc-notes-modal .dc-notes-modal-body {
+                padding: 10px;
+            }
+        }
+
         body.dc-side-access-collapsed .access-log-side-bar {
             display: none !important;
         }
@@ -880,6 +1065,8 @@
     let abrindoModalTorres = false;
     let ultimoFocoModalHorarios = null;
     let ultimoFocoModalTorres = null;
+    let ultimoFocoModalNotas = null;
+    let temporizadorRascunhoNotas = null;
 
     const pacotesPorCodigo = new Map();
     const detalhesPacotes = new Map();
@@ -1618,6 +1805,439 @@
         }
     }
 
+    function lerNotasOperador() {
+        try {
+            const salvo = window.localStorage.getItem(
+                CHAVE_NOTAS_OPERADOR
+            );
+            if (!salvo) return [];
+
+            const itens = JSON.parse(salvo);
+            if (!Array.isArray(itens)) return [];
+
+            return itens.filter(function (item) {
+                return item && typeof item.texto === 'string' &&
+                    item.texto.trim();
+            }).map(function (item, indice) {
+                return {
+                    id: String(item.id || ('nota-legada-' + indice)),
+                    texto: item.texto.slice(0, LIMITE_CARACTERES_NOTA),
+                    criadaEm: item.criadaEm || new Date().toISOString()
+                };
+            }).slice(0, LIMITE_NOTAS_OPERADOR);
+        } catch (erro) {
+            console.warn(
+                'Não foi possível ler o histórico de notas.',
+                erro
+            );
+            return [];
+        }
+    }
+
+    function gravarNotasOperador(notas) {
+        try {
+            window.localStorage.setItem(
+                CHAVE_NOTAS_OPERADOR,
+                JSON.stringify(notas.slice(0, LIMITE_NOTAS_OPERADOR))
+            );
+        } catch (erro) {
+            throw new Error(
+                'O navegador não permitiu salvar o histórico. ' +
+                'Verifique o espaço e as permissões de armazenamento.'
+            );
+        }
+    }
+
+    function lerRascunhoNotasOperador() {
+        try {
+            return String(window.localStorage.getItem(
+                CHAVE_RASCUNHO_NOTAS_OPERADOR
+            ) || '').slice(0, LIMITE_CARACTERES_NOTA);
+        } catch (erro) {
+            return '';
+        }
+    }
+
+    function gravarRascunhoNotasOperador(texto) {
+        try {
+            if (texto) {
+                window.localStorage.setItem(
+                    CHAVE_RASCUNHO_NOTAS_OPERADOR,
+                    texto.slice(0, LIMITE_CARACTERES_NOTA)
+                );
+            } else {
+                window.localStorage.removeItem(
+                    CHAVE_RASCUNHO_NOTAS_OPERADOR
+                );
+            }
+        } catch (erro) {
+            console.warn('Não foi possível salvar o rascunho.', erro);
+        }
+    }
+
+    function agendarRascunhoNotasOperador(texto) {
+        if (temporizadorRascunhoNotas) {
+            window.clearTimeout(temporizadorRascunhoNotas);
+        }
+
+        temporizadorRascunhoNotas = window.setTimeout(function () {
+            temporizadorRascunhoNotas = null;
+            gravarRascunhoNotasOperador(texto);
+        }, 300);
+    }
+
+    function formatarDataNotaOperador(valor) {
+        const data = new Date(valor);
+        if (Number.isNaN(data.getTime())) return 'Data não disponível';
+
+        return data.toLocaleString('pt-BR', {
+            dateStyle: 'short',
+            timeStyle: 'short'
+        });
+    }
+
+    function definirStatusNotas(modal, mensagem) {
+        const status = modal.querySelector('.dc-notes-status');
+        if (status) status.textContent = mensagem || '';
+    }
+
+    function atualizarContadorNotas(modal) {
+        const campo = modal.querySelector('.dc-notes-input');
+        const contador = modal.querySelector('.dc-notes-counter');
+        if (!campo || !contador) return;
+
+        contador.textContent = campo.value.length + ' / ' +
+            LIMITE_CARACTERES_NOTA + ' caracteres';
+    }
+
+    function renderizarHistoricoNotas(modal) {
+        const host = modal.querySelector('.dc-notes-history');
+        const titulo = modal.querySelector('.dc-notes-history-title');
+        const limpar = modal.querySelector('.dc-notes-clear');
+        if (!host || !titulo || !limpar) return;
+
+        const notas = lerNotasOperador();
+        host.replaceChildren();
+        titulo.textContent = 'Histórico (' + notas.length + ')';
+        limpar.disabled = notas.length === 0;
+
+        if (!notas.length) {
+            const vazio = document.createElement('p');
+            vazio.className = 'dc-notes-empty';
+            vazio.textContent = 'Nenhuma anotação salva neste navegador.';
+            host.appendChild(vazio);
+            return;
+        }
+
+        notas.forEach(function (nota) {
+            const item = document.createElement('article');
+            item.className = 'dc-note-history-item';
+            item.dataset.dcNoteId = nota.id;
+
+            const meta = document.createElement('div');
+            meta.className = 'dc-note-history-meta';
+            meta.textContent = formatarDataNotaOperador(nota.criadaEm);
+
+            const texto = document.createElement('pre');
+            texto.className = 'dc-note-history-text';
+            texto.textContent = nota.texto;
+
+            const acoes = document.createElement('div');
+            acoes.className = 'dc-note-history-actions';
+            acoes.innerHTML = `
+                <button type="button" class="btn btn-sm btn-default"
+                    data-dc-note-action="copy">
+                    <i class="fa fa-copy" aria-hidden="true"></i>
+                    Copiar
+                </button>
+                <button type="button" class="btn btn-sm btn-danger"
+                    data-dc-note-action="delete">
+                    <i class="fa fa-trash" aria-hidden="true"></i>
+                    Excluir
+                </button>
+            `;
+
+            item.appendChild(meta);
+            item.appendChild(texto);
+            item.appendChild(acoes);
+            host.appendChild(item);
+        });
+    }
+
+    async function copiarTextoNota(texto) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+                await navigator.clipboard.writeText(texto);
+                return;
+            } catch (erro) {
+                console.debug(
+                    'Clipboard moderno indisponível; usando alternativa.',
+                    erro
+                );
+            }
+        }
+
+        const campo = document.createElement('textarea');
+        campo.value = texto;
+        campo.style.position = 'fixed';
+        campo.style.opacity = '0';
+        document.body.appendChild(campo);
+        campo.select();
+
+        const copiou = document.execCommand('copy');
+        campo.remove();
+
+        if (!copiou) {
+            throw new Error('O navegador não permitiu copiar a anotação.');
+        }
+    }
+
+    function salvarNotaDoModal(modal) {
+        const campo = modal.querySelector('.dc-notes-input');
+        if (!campo) return;
+
+        const texto = campo.value.trim();
+        if (!texto) {
+            definirStatusNotas(modal, 'Digite uma anotação antes de salvar.');
+            campo.focus();
+            return;
+        }
+
+        const notas = lerNotasOperador();
+        notas.unshift({
+            id: Date.now().toString(36) + '-' +
+                Math.random().toString(36).slice(2, 9),
+            texto: texto,
+            criadaEm: new Date().toISOString()
+        });
+
+        try {
+            gravarNotasOperador(notas);
+        } catch (erro) {
+            definirStatusNotas(modal, erro.message);
+            return;
+        }
+
+        if (temporizadorRascunhoNotas) {
+            window.clearTimeout(temporizadorRascunhoNotas);
+            temporizadorRascunhoNotas = null;
+        }
+
+        campo.value = '';
+        gravarRascunhoNotasOperador('');
+        atualizarContadorNotas(modal);
+        renderizarHistoricoNotas(modal);
+        definirStatusNotas(modal, 'Anotação salva neste navegador.');
+        campo.focus();
+    }
+
+    function fecharModalNotas() {
+        const fundo = document.querySelector('#dc-notes-modal-backdrop');
+        if (!fundo) return;
+
+        const campo = fundo.querySelector('.dc-notes-input');
+        if (temporizadorRascunhoNotas) {
+            window.clearTimeout(temporizadorRascunhoNotas);
+            temporizadorRascunhoNotas = null;
+        }
+        if (campo) gravarRascunhoNotasOperador(campo.value);
+
+        fundo.remove();
+        document.removeEventListener('keydown', tratarTeclaModalNotas);
+
+        if (
+            ultimoFocoModalNotas &&
+            ultimoFocoModalNotas.isConnected
+        ) {
+            ultimoFocoModalNotas.focus();
+        }
+
+        ultimoFocoModalNotas = null;
+    }
+
+    function tratarTeclaModalNotas(evento) {
+        if (evento.key === 'Escape') {
+            fecharModalNotas();
+        }
+    }
+
+    function abrirModalNotas() {
+        fecharModalNotas();
+        ultimoFocoModalNotas = document.activeElement;
+
+        const fundo = document.createElement('div');
+        fundo.id = 'dc-notes-modal-backdrop';
+        fundo.innerHTML = `
+            <section id="dc-notes-modal" role="dialog" aria-modal="true"
+                aria-labelledby="dc-notes-modal-title">
+                <header class="dc-notes-modal-header">
+                    <h2 id="dc-notes-modal-title"
+                        class="dc-notes-modal-title">
+                        <i class="fa fa-sticky-note" aria-hidden="true"></i>
+                        Bloco de notas do operador
+                    </h2>
+                    <button type="button" class="dc-notes-modal-close-x"
+                        aria-label="Fechar bloco de notas">
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="dc-notes-modal-body">
+                    <p class="dc-notes-privacy">
+                        <strong>Armazenamento local:</strong> as anotações
+                        ficam somente neste navegador e não são criptografadas.
+                        Não guarde senhas, documentos completos ou outros
+                        dados sensíveis. Limpar os dados do site também apaga
+                        este histórico.
+                    </p>
+                    <label for="dc-notes-input" class="dc-notes-label">
+                        Nova anotação
+                    </label>
+                    <textarea id="dc-notes-input"
+                        class="form-control dc-notes-input"
+                        rows="5" maxlength="${LIMITE_CARACTERES_NOTA}"
+                        placeholder="Digite a anotação do operador..."></textarea>
+                    <div class="dc-notes-composer-actions">
+                        <span class="dc-notes-counter"></span>
+                        <button type="button"
+                            class="btn btn-info dc-notes-save">
+                            <i class="fa fa-save" aria-hidden="true"></i>
+                            Salvar anotação
+                        </button>
+                    </div>
+                    <p class="dc-notes-status" role="status"
+                        aria-live="polite"></p>
+                    <div class="dc-notes-history-header">
+                        <h3 class="dc-notes-history-title">Histórico</h3>
+                        <button type="button"
+                            class="btn btn-sm btn-default dc-notes-clear">
+                            <i class="fa fa-trash" aria-hidden="true"></i>
+                            Limpar histórico
+                        </button>
+                    </div>
+                    <div class="dc-notes-history"></div>
+                </div>
+                <footer class="dc-notes-modal-footer">
+                    <button type="button"
+                        class="dc-notes-modal-close btn btn-default">
+                        Fechar
+                    </button>
+                </footer>
+            </section>
+        `;
+
+        document.body.appendChild(fundo);
+        document.addEventListener('keydown', tratarTeclaModalNotas);
+
+        const modal = fundo.querySelector('#dc-notes-modal');
+        const campo = modal.querySelector('.dc-notes-input');
+        const salvar = modal.querySelector('.dc-notes-save');
+        const limpar = modal.querySelector('.dc-notes-clear');
+
+        campo.value = lerRascunhoNotasOperador();
+        atualizarContadorNotas(modal);
+        renderizarHistoricoNotas(modal);
+
+        campo.addEventListener('input', function () {
+            atualizarContadorNotas(modal);
+            definirStatusNotas(modal, 'Rascunho salvo automaticamente.');
+            agendarRascunhoNotasOperador(campo.value);
+        });
+
+        campo.addEventListener('keydown', function (evento) {
+            if (evento.ctrlKey && evento.key === 'Enter') {
+                evento.preventDefault();
+                salvarNotaDoModal(modal);
+            }
+        });
+
+        salvar.addEventListener('click', function () {
+            salvarNotaDoModal(modal);
+        });
+
+        limpar.addEventListener('click', function () {
+            const quantidade = lerNotasOperador().length;
+            if (!quantidade) return;
+
+            if (!window.confirm(
+                'Excluir permanentemente as ' + quantidade +
+                ' anotações deste navegador?'
+            )) {
+                return;
+            }
+
+            try {
+                gravarNotasOperador([]);
+                renderizarHistoricoNotas(modal);
+                definirStatusNotas(modal, 'Histórico apagado.');
+            } catch (erro) {
+                definirStatusNotas(modal, erro.message);
+            }
+        });
+
+        modal.querySelector('.dc-notes-history')
+            .addEventListener('click', async function (evento) {
+                const alvo = evento.target instanceof Element
+                    ? evento.target.closest('[data-dc-note-action]')
+                    : null;
+                if (!alvo) return;
+
+                const item = alvo.closest('.dc-note-history-item');
+                const notas = lerNotasOperador();
+                const nota = notas.find(function (candidato) {
+                    return candidato.id === item.dataset.dcNoteId;
+                });
+                if (!nota) {
+                    definirStatusNotas(
+                        modal,
+                        'Esta anotação não está mais disponível.'
+                    );
+                    return;
+                }
+
+                if (alvo.dataset.dcNoteAction === 'copy') {
+                    try {
+                        await copiarTextoNota(nota.texto);
+                        definirStatusNotas(modal, 'Anotação copiada.');
+                    } catch (erro) {
+                        definirStatusNotas(modal, erro.message);
+                    }
+                    return;
+                }
+
+                if (
+                    alvo.dataset.dcNoteAction === 'delete' &&
+                    window.confirm('Excluir esta anotação do histórico?')
+                ) {
+                    try {
+                        gravarNotasOperador(notas.filter(function (candidato) {
+                            return candidato.id !== nota.id;
+                        }));
+                        renderizarHistoricoNotas(modal);
+                        definirStatusNotas(modal, 'Anotação excluída.');
+                    } catch (erro) {
+                        definirStatusNotas(modal, erro.message);
+                    }
+                }
+            });
+
+        fundo.addEventListener('click', function (evento) {
+            const alvo = evento.target instanceof Element
+                ? evento.target
+                : null;
+
+            if (
+                alvo === fundo ||
+                (alvo && alvo.closest(
+                    '.dc-notes-modal-close, .dc-notes-modal-close-x'
+                ))
+            ) {
+                fecharModalNotas();
+            }
+        });
+
+        campo.focus();
+    }
+
     function localizarBuscaGeral() {
         return Array.from(document.querySelectorAll('input')).find(
             function (campo) {
@@ -2299,6 +2919,12 @@
                 false
             ));
             atalhos.appendChild(criarAtalhoOperador(
+                'notas',
+                'NOTAS',
+                '<i class="fa fa-sticky-note"></i>',
+                false
+            ));
+            atalhos.appendChild(criarAtalhoOperador(
                 'multiservi',
                 'MULTISERVI',
                 '<i class="fa fa-external-link"></i>',
@@ -2341,6 +2967,9 @@
                     break;
                 case 'horarios':
                     abrirModalHorarios();
+                    break;
+                case 'notas':
+                    abrirModalNotas();
                     break;
                 case 'multiservi':
                     window.open(
