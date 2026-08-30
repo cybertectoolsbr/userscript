@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.16
-// @author       CybertevTools
+// @version      4.5.17
+// @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
 // @updateURL    https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/DoctorCondo-Operador.user.js
@@ -17,10 +17,69 @@
     const MULTISERVI_URL =
         'https://gestaopro--studio-3133796255-61262.us-east4.hosted.app/';
     const CHAVE_ROTA_CAMERA_PLACA = 'dc-operator-plate-camera-route';
+    const PARAMETRO_CAMERA_EM_QUADRO = 'dc_plate_panel';
     const CHAVE_NOTAS_OPERADOR = 'dc-operator-notes-v1';
     const CHAVE_RASCUNHO_NOTAS_OPERADOR = 'dc-operator-notes-draft-v1';
     const LIMITE_NOTAS_OPERADOR = 200;
     const LIMITE_CARACTERES_NOTA = 4000;
+
+    function iniciarModoCameraEmQuadro() {
+        function aplicarEstilo() {
+            if (!document.head) {
+                window.setTimeout(aplicarEstilo, 50);
+                return;
+            }
+
+            if (document.querySelector('#dc-plate-frame-style')) return;
+
+            const style = document.createElement('style');
+            style.id = 'dc-plate-frame-style';
+            style.textContent = `
+                html, body {
+                    min-width: 0 !important;
+                    background: #ffffff !important;
+                }
+
+                body {
+                    overflow: auto !important;
+                    zoom: .82;
+                }
+
+                #dc-operator-topbar,
+                #dc-operator-page-spacer,
+                .main-header,
+                .main-sidebar,
+                .access-log-side-bar,
+                .content-header,
+                .main-footer,
+                #sidebar-overlay {
+                    display: none !important;
+                }
+
+                .content-wrapper {
+                    width: auto !important;
+                    min-height: 100vh !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        aplicarEstilo();
+    }
+
+    const executandoComoCameraEmQuadro = Boolean(
+        window.self !== window.top &&
+        new URLSearchParams(window.location.search).get(
+            PARAMETRO_CAMERA_EM_QUADRO
+        ) === '1'
+    );
+
+    if (executandoComoCameraEmQuadro) {
+        iniciarModoCameraEmQuadro();
+        return;
+    }
 
     const CSS = `
         .dc-section-collapsed {
@@ -705,6 +764,152 @@
             padding: 10px 14px;
             background: #f8fbfc;
             border-top: 1px solid #d9e8ed;
+        }
+
+        #dc-plate-viewer {
+            position: fixed;
+            z-index: 2100000;
+            top: 54px;
+            right: 18px;
+            display: flex;
+            flex-direction: column;
+            width: min(680px, calc(100vw - 36px));
+            height: min(440px, calc(100vh - 72px));
+            min-width: 380px;
+            min-height: 250px;
+            overflow: hidden;
+            color: #333333;
+            background: #ffffff;
+            border: 1px solid #789aa5;
+            border-radius: 5px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, .4);
+            resize: both;
+        }
+
+        #dc-plate-viewer.dc-plate-viewer-minimized {
+            width: min(360px, calc(100vw - 36px)) !important;
+            height: 44px !important;
+            min-width: 260px;
+            min-height: 44px;
+            resize: none;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-header {
+            display: flex;
+            flex: 0 0 44px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 6px 8px 6px 12px;
+            color: #ffffff;
+            background: #58abc3;
+            cursor: move;
+            user-select: none;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-title {
+            min-width: 0;
+            margin: 0;
+            overflow: hidden;
+            font-size: 14px;
+            font-weight: 600;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-header-actions {
+            display: flex;
+            flex: 0 0 auto;
+            gap: 5px;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-header-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            color: #ffffff;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, .8);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-header-button:hover,
+        #dc-plate-viewer .dc-plate-viewer-header-button:focus {
+            color: #ffffff;
+            background: rgba(0, 0, 0, .16);
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-body {
+            position: relative;
+            display: flex;
+            flex: 1 1 auto;
+            min-height: 0;
+            background: #ffffff;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-frame {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border: 0;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-status {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            color: #51636b;
+            background: #f8fbfc;
+            font-size: 13px;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-status[hidden] {
+            display: none !important;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-footer {
+            display: flex;
+            flex: 0 0 auto;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 9px;
+            background: #f8fbfc;
+            border-top: 1px solid #d9e8ed;
+        }
+
+        #dc-plate-viewer .dc-plate-viewer-help {
+            min-width: 180px;
+            margin-right: auto;
+            color: #60727a;
+            font-size: 11px;
+        }
+
+        #dc-plate-viewer.dc-plate-viewer-minimized
+        .dc-plate-viewer-body,
+        #dc-plate-viewer.dc-plate-viewer-minimized
+        .dc-plate-viewer-footer {
+            display: none;
+        }
+
+        @media (max-width: 700px) {
+            #dc-plate-viewer {
+                top: 46px;
+                right: 8px;
+                width: calc(100vw - 16px);
+                height: min(62vh, 500px);
+                min-width: 0;
+                min-height: 240px;
+            }
         }
 
         @media (max-width: 600px) {
@@ -1539,12 +1744,11 @@
         }
     }
 
-    function navegarParaCameraPlaca(forcarConfiguracao) {
+    function solicitarRotaCameraPlaca(forcarConfiguracao) {
         const rotaSalva = obterRotaCameraPlacaSalva();
 
         if (rotaSalva && !forcarConfiguracao) {
-            window.location.hash = rotaSalva;
-            return;
+            return rotaSalva;
         }
 
         const rotaAtual = normalizarRotaCameraPlaca(window.location.href);
@@ -1556,7 +1760,7 @@
                 : ''
         );
 
-        if (informado === null) return;
+        if (informado === null) return null;
 
         const rota = normalizarRotaCameraPlaca(informado);
         if (!rota) {
@@ -1564,19 +1768,328 @@
                 'Endereço inválido. Use uma tela do DoctorCondo no formato ' +
                 '#/c/.../.../cameras/.../view.'
             );
-            return;
+            return null;
         }
 
         try {
             window.localStorage.setItem(CHAVE_ROTA_CAMERA_PLACA, rota);
         } catch (erro) {
             window.alert(
-                'A câmera será aberta, mas o navegador não permitiu salvar ' +
+                'A câmera será exibida, mas o navegador não permitiu salvar ' +
                 'o atalho para os próximos acessos.'
             );
         }
 
-        window.location.hash = rota;
+        return rota;
+    }
+
+    function obterUrlCameraPlaca(rota, emQuadro) {
+        const url = new URL(window.location.pathname, window.location.origin);
+
+        if (emQuadro) {
+            url.searchParams.set(PARAMETRO_CAMERA_EM_QUADRO, '1');
+        }
+
+        url.hash = rota;
+        return url.href;
+    }
+
+    function fecharPainelCameraPlaca() {
+        const painel = document.querySelector('#dc-plate-viewer');
+        if (!painel) return;
+
+        const focoAnterior = painel.__dcPreviousFocus;
+        painel.remove();
+
+        if (focoAnterior && focoAnterior.isConnected) {
+            focoAnterior.focus();
+        }
+    }
+
+    function ajustarPainelCameraNaTela(painel) {
+        if (!painel || !painel.isConnected) return;
+
+        const retangulo = painel.getBoundingClientRect();
+        const esquerda = Math.max(
+            0,
+            Math.min(retangulo.left, window.innerWidth - retangulo.width)
+        );
+        const topo = Math.max(
+            0,
+            Math.min(retangulo.top, window.innerHeight - 44)
+        );
+
+        painel.style.left = esquerda + 'px';
+        painel.style.top = topo + 'px';
+        painel.style.right = 'auto';
+    }
+
+    function habilitarArrastePainelCamera(painel) {
+        const cabecalho = painel.querySelector('.dc-plate-viewer-header');
+        if (!cabecalho) return;
+
+        cabecalho.addEventListener('pointerdown', function (evento) {
+            if (
+                evento.button !== 0 ||
+                evento.target.closest('button') ||
+                painel.classList.contains('dc-plate-viewer-minimized')
+            ) {
+                return;
+            }
+
+            const inicial = painel.getBoundingClientRect();
+            const origemX = evento.clientX;
+            const origemY = evento.clientY;
+
+            painel.style.left = inicial.left + 'px';
+            painel.style.top = inicial.top + 'px';
+            painel.style.right = 'auto';
+
+            function mover(movimento) {
+                const esquerda = Math.max(
+                    0,
+                    Math.min(
+                        inicial.left + movimento.clientX - origemX,
+                        window.innerWidth - painel.offsetWidth
+                    )
+                );
+                const topo = Math.max(
+                    0,
+                    Math.min(
+                        inicial.top + movimento.clientY - origemY,
+                        window.innerHeight - 44
+                    )
+                );
+
+                painel.style.left = esquerda + 'px';
+                painel.style.top = topo + 'px';
+            }
+
+            function finalizar() {
+                document.removeEventListener('pointermove', mover);
+                document.removeEventListener('pointerup', finalizar);
+                document.removeEventListener('pointercancel', finalizar);
+            }
+
+            document.addEventListener('pointermove', mover);
+            document.addEventListener('pointerup', finalizar);
+            document.addEventListener('pointercancel', finalizar);
+            evento.preventDefault();
+        });
+    }
+
+    function prepararDocumentoCameraNoQuadro(quadro) {
+        try {
+            const documento = quadro.contentDocument;
+            if (!documento || !documento.head) return;
+            if (documento.querySelector('#dc-plate-parent-frame-style')) {
+                return;
+            }
+
+            const style = documento.createElement('style');
+            style.id = 'dc-plate-parent-frame-style';
+            style.textContent = `
+                html, body {
+                    min-width: 0 !important;
+                    background: #ffffff !important;
+                }
+
+                body {
+                    overflow: auto !important;
+                    zoom: .82;
+                }
+
+                #dc-operator-topbar,
+                #dc-operator-page-spacer,
+                .main-header,
+                .main-sidebar,
+                .access-log-side-bar,
+                .content-header,
+                .main-footer,
+                #sidebar-overlay {
+                    display: none !important;
+                }
+
+                .content-wrapper {
+                    width: auto !important;
+                    min-height: 100vh !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+            `;
+            documento.head.appendChild(style);
+        } catch (erro) {
+            console.warn(
+                'Não foi possível simplificar a tela da câmera no quadro.',
+                erro
+            );
+        }
+    }
+
+    function carregarCameraNoPainel(painel, rota) {
+        const quadro = painel.querySelector('.dc-plate-viewer-frame');
+        const status = painel.querySelector('.dc-plate-viewer-status');
+        const url = obterUrlCameraPlaca(rota, true);
+
+        painel.dataset.dcPlateRoute = rota;
+        status.hidden = false;
+        status.textContent = 'Carregando o player oficial da câmera...';
+
+        quadro.addEventListener('load', function aoCarregar() {
+            prepararDocumentoCameraNoQuadro(quadro);
+
+            window.setTimeout(function () {
+                prepararDocumentoCameraNoQuadro(quadro);
+                status.hidden = true;
+            }, 900);
+
+            window.setTimeout(function () {
+                prepararDocumentoCameraNoQuadro(quadro);
+            }, 2500);
+        }, { once: true });
+
+        quadro.src = url;
+    }
+
+    function criarPainelCameraPlaca(rota) {
+        const painel = document.createElement('section');
+        painel.id = 'dc-plate-viewer';
+        painel.setAttribute('role', 'dialog');
+        painel.setAttribute('aria-modal', 'false');
+        painel.setAttribute(
+            'aria-labelledby',
+            'dc-plate-viewer-title'
+        );
+        painel.__dcPreviousFocus = document.activeElement;
+        painel.innerHTML = `
+            <header class="dc-plate-viewer-header">
+                <h2 id="dc-plate-viewer-title"
+                    class="dc-plate-viewer-title">
+                    <i class="fa fa-camera" aria-hidden="true"></i>
+                    Visualização da placa
+                </h2>
+                <div class="dc-plate-viewer-header-actions">
+                    <button type="button"
+                        class="dc-plate-viewer-header-button
+                            dc-plate-viewer-minimize"
+                        title="Minimizar câmera"
+                        aria-label="Minimizar câmera">
+                        <i class="fa fa-minus" aria-hidden="true"></i>
+                    </button>
+                    <button type="button"
+                        class="dc-plate-viewer-header-button
+                            dc-plate-viewer-close"
+                        title="Fechar câmera"
+                        aria-label="Fechar câmera">
+                        <i class="fa fa-times" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </header>
+            <div class="dc-plate-viewer-body">
+                <iframe class="dc-plate-viewer-frame"
+                    title="Câmera da leitura de placa"
+                    allow="autoplay; fullscreen"></iframe>
+                <div class="dc-plate-viewer-status" role="status">
+                    Carregando o player oficial da câmera...
+                </div>
+            </div>
+            <footer class="dc-plate-viewer-footer">
+                <span class="dc-plate-viewer-help">
+                    A janela pode ser movida e redimensionada.
+                </span>
+                <button type="button"
+                    class="btn btn-sm btn-default dc-plate-viewer-reload">
+                    <i class="fa fa-refresh" aria-hidden="true"></i>
+                    Recarregar
+                </button>
+                <button type="button"
+                    class="btn btn-sm btn-default dc-plate-viewer-new-tab">
+                    <i class="fa fa-external-link" aria-hidden="true"></i>
+                    Nova guia
+                </button>
+                <button type="button"
+                    class="btn btn-sm btn-default dc-plate-viewer-change">
+                    <i class="fa fa-cog" aria-hidden="true"></i>
+                    Trocar câmera
+                </button>
+            </footer>
+        `;
+
+        painel.querySelector('.dc-plate-viewer-close')
+            .addEventListener('click', fecharPainelCameraPlaca);
+
+        painel.querySelector('.dc-plate-viewer-minimize')
+            .addEventListener('click', function () {
+                const minimizado = painel.classList.toggle(
+                    'dc-plate-viewer-minimized'
+                );
+                const botao = painel.querySelector(
+                    '.dc-plate-viewer-minimize'
+                );
+                const icone = botao.querySelector('i');
+
+                botao.title = minimizado
+                    ? 'Restaurar câmera'
+                    : 'Minimizar câmera';
+                botao.setAttribute('aria-label', botao.title);
+                icone.className = minimizado
+                    ? 'fa fa-window-maximize'
+                    : 'fa fa-minus';
+
+                if (!minimizado) {
+                    ajustarPainelCameraNaTela(painel);
+                }
+            });
+
+        painel.querySelector('.dc-plate-viewer-reload')
+            .addEventListener('click', function () {
+                carregarCameraNoPainel(
+                    painel,
+                    painel.dataset.dcPlateRoute
+                );
+            });
+
+        painel.querySelector('.dc-plate-viewer-new-tab')
+            .addEventListener('click', function () {
+                window.open(
+                    obterUrlCameraPlaca(
+                        painel.dataset.dcPlateRoute,
+                        false
+                    ),
+                    '_blank',
+                    'noopener,noreferrer'
+                );
+            });
+
+        painel.querySelector('.dc-plate-viewer-change')
+            .addEventListener('click', function () {
+                abrirPainelCameraPlaca(true);
+            });
+
+        habilitarArrastePainelCamera(painel);
+        document.body.appendChild(painel);
+        carregarCameraNoPainel(painel, rota);
+        return painel;
+    }
+
+    function abrirPainelCameraPlaca(forcarConfiguracao) {
+        const rota = solicitarRotaCameraPlaca(forcarConfiguracao);
+        if (!rota) return;
+
+        let painel = document.querySelector('#dc-plate-viewer');
+
+        if (!painel) {
+            painel = criarPainelCameraPlaca(rota);
+        } else {
+            painel.classList.remove('dc-plate-viewer-minimized');
+            ajustarPainelCameraNaTela(painel);
+
+            if (painel.dataset.dcPlateRoute !== rota) {
+                carregarCameraNoPainel(painel, rota);
+            }
+        }
+
+        painel.querySelector('.dc-plate-viewer-close').focus();
     }
 
     async function abrirEntradaVeiculosGlobal() {
@@ -2937,7 +3450,8 @@
                 false
             );
             verPlaca.title =
-                'VER PLACA — use Shift + clique para trocar a câmera';
+                'VER PLACA — abre uma janela flutuante; ' +
+                'use Shift + clique para trocar a câmera';
             atalhos.appendChild(verPlaca);
 
             atalhos.addEventListener('click', function (evento) {
@@ -2979,7 +3493,7 @@
                     );
                     break;
                 case 'ver-placa':
-                    navegarParaCameraPlaca(evento.shiftKey);
+                    abrirPainelCameraPlaca(evento.shiftKey);
                     break;
                 }
             });
@@ -5016,9 +5530,12 @@
         iniciarAplicacao();
     }
 
-    window.addEventListener('resize', agendarAtualizacao, {
-        passive: true
-    });
+    window.addEventListener('resize', function () {
+        agendarAtualizacao();
+        ajustarPainelCameraNaTela(
+            document.querySelector('#dc-plate-viewer')
+        );
+    }, { passive: true });
     window.addEventListener('hashchange', agendarAtualizacao);
 
     setTimeout(iniciarAplicacao, 800);

@@ -1,6 +1,6 @@
 # DoctorCondo Operador — Userscript
 
-Distribuição pública mínima do userscript `DoctorCondo - personal`, mantido por CybertevTools.
+Distribuição pública mínima do userscript `DoctorCondo - personal`, mantido por CYBERTECTOOLS.
 
 ## Instalação
 
