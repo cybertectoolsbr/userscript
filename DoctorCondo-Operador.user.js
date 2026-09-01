@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.18
+// @version      4.5.19
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -331,6 +331,22 @@
             border: 0;
         }
 
+        @media (max-width: 1299px) {
+            #dc-operator-shortcuts
+            .dc-operator-shortcut:not(.dc-operator-shortcut-primary) {
+                width: 32px;
+                padding-right: 4px;
+                padding-left: 4px;
+                gap: 0;
+            }
+
+            #dc-operator-shortcuts
+            .dc-operator-shortcut:not(.dc-operator-shortcut-primary)
+            .dc-operator-shortcut-label {
+                display: none;
+            }
+        }
+
         #dc-hours-modal-backdrop {
             position: fixed;
             z-index: 2000000;
@@ -508,7 +524,7 @@
 
         #dc-towers-modal-backdrop {
             position: fixed;
-            z-index: 2000000;
+            z-index: 1040;
             inset: 0;
             display: flex;
             align-items: center;
@@ -2226,7 +2242,8 @@
                     <p class="dc-towers-warning">
                         <strong>Atenção:</strong> confirme a torre antes de
                         clicar. Cada opção aciona o respectivo botão oficial
-                        do DoctorCondo.
+                        do DoctorCondo. O painel continuará disponível após
+                        encerrar o formulário oficial.
                     </p>
                     <div class="dc-towers-grid"
                         aria-label="Botões oficiais das torres"></div>
@@ -2269,7 +2286,6 @@
                     return;
                 }
 
-                fecharModalTorres();
                 original.click();
             });
 
@@ -3447,7 +3463,7 @@
             atalhos.appendChild(criarAtalhoOperador(
                 'horarios',
                 'Horários',
-                '<i class="fa fa-calendar"></i>',
+                '<i class="fa fa-clock"></i>',
                 false
             ));
             atalhos.appendChild(criarAtalhoOperador(
