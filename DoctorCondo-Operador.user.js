@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.20
+// @version      4.5.21
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -2251,6 +2251,28 @@
         )).filter(botaoEhDeEntradaDeTorre);
     }
 
+    function localizarBotaoTorrePorRotulo(rotulo) {
+        const procurado = normalizarTexto(rotulo);
+        return localizarBotoesTorres().find(function (botao) {
+            return normalizarTexto(botao.textContent) === procurado;
+        }) || null;
+    }
+
+    function atualizarDisponibilidadeBotoesModalTorres(grade) {
+        if (!grade || !grade.isConnected) return;
+
+        grade.querySelectorAll('.dc-tower-modal-button')
+            .forEach(function (proxy) {
+                if (proxy.dataset.dcTowerBusy === 'true') return;
+
+                const original = localizarBotaoTorrePorRotulo(
+                    proxy.__dcTowerLabel
+                );
+                proxy.__dcOriginalButton = original;
+                proxy.disabled = !original || botaoEstaDesativado(original);
+            });
+    }
+
     function prepararBotoesTorres() {
         document.querySelectorAll('.access-control-btn-bar-button')
             .forEach(function (botao) {
@@ -2267,6 +2289,9 @@
         );
         if (!fundo) return;
 
+        if (fundo.__dcAvailabilityTimer) {
+            window.clearInterval(fundo.__dcAvailabilityTimer);
+        }
         fundo.remove();
         document.removeEventListener('keydown', tratarTeclaModalTorres);
 
@@ -2396,11 +2421,15 @@
             proxy.disabled = botaoEstaDesativado(original);
 
             const rotulo = original.textContent.replace(/\s+/g, ' ').trim();
+            proxy.__dcTowerLabel = rotulo;
             proxy.title = rotulo;
             proxy.setAttribute('aria-label', rotulo);
 
             proxy.addEventListener('click', function () {
-                if (!original.isConnected) {
+                let botaoOriginal = localizarBotaoTorrePorRotulo(rotulo);
+                proxy.__dcOriginalButton = botaoOriginal;
+
+                if (!botaoOriginal) {
                     atualizarFeedbackTorres(
                         fundo,
                         'error',
@@ -2414,7 +2443,7 @@
                     return;
                 }
 
-                if (botaoEstaDesativado(original)) {
+                if (botaoEstaDesativado(botaoOriginal)) {
                     atualizarFeedbackTorres(
                         fundo,
                         'error',
@@ -2445,19 +2474,22 @@
 
                 window.setTimeout(function () {
                     try {
-                        if (!original.isConnected) {
+                        botaoOriginal = localizarBotaoTorrePorRotulo(rotulo);
+                        proxy.__dcOriginalButton = botaoOriginal;
+
+                        if (!botaoOriginal) {
                             throw new Error(
                                 'O botão oficial não está mais disponível.'
                             );
                         }
 
-                        if (botaoEstaDesativado(original)) {
+                        if (botaoEstaDesativado(botaoOriginal)) {
                             throw new Error(
                                 'O botão oficial está desativado.'
                             );
                         }
 
-                        original.click();
+                        botaoOriginal.click();
                         exibirEstadoBotaoTorre(proxy, 'sent');
                         atualizarFeedbackTorres(
                             fundo,
@@ -2477,13 +2509,9 @@
                     } finally {
                         window.setTimeout(function () {
                             proxy.dataset.dcTowerBusy = 'false';
-                            proxies.forEach(function (botao) {
-                                const botaoOriginal =
-                                    botao.__dcOriginalButton;
-                                botao.disabled = !botaoOriginal ||
-                                    !botaoOriginal.isConnected ||
-                                    botaoEstaDesativado(botaoOriginal);
-                            });
+                            atualizarDisponibilidadeBotoesModalTorres(
+                                grade
+                            );
                         }, 1000);
                     }
 
@@ -2518,6 +2546,9 @@
 
         document.body.appendChild(fundo);
         document.addEventListener('keydown', tratarTeclaModalTorres);
+        fundo.__dcAvailabilityTimer = window.setInterval(function () {
+            atualizarDisponibilidadeBotoesModalTorres(grade);
+        }, 500);
 
         const primeiro = grade.querySelector(
             '.dc-tower-modal-button:not(:disabled)'
