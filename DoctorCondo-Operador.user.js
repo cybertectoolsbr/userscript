@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.19
+// @version      4.5.20
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -587,6 +587,48 @@
             font-size: 12px;
         }
 
+        #dc-towers-modal .dc-towers-feedback {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            min-height: 42px;
+            margin: 0 0 12px;
+            padding: 9px 11px;
+            border: 1px solid #b7cbd2;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        #dc-towers-modal .dc-towers-feedback > .fa {
+            flex: 0 0 auto;
+            font-size: 17px;
+        }
+
+        #dc-towers-modal .dc-towers-feedback-idle {
+            color: #315d6b;
+            background: #edf7fa;
+            border-color: #a8d1dd;
+        }
+
+        #dc-towers-modal .dc-towers-feedback-sending {
+            color: #6c4c08;
+            background: #fff4d2;
+            border-color: #e2bd59;
+        }
+
+        #dc-towers-modal .dc-towers-feedback-sent {
+            color: #205c39;
+            background: #e2f5e9;
+            border-color: #77bf90;
+        }
+
+        #dc-towers-modal .dc-towers-feedback-error {
+            color: #842029;
+            background: #f8d7da;
+            border-color: #e5a6ac;
+        }
+
         #dc-towers-modal .dc-towers-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -616,6 +658,36 @@
         #dc-towers-modal .dc-tower-modal-button:focus-visible {
             outline: 2px solid #1f5f73;
             outline-offset: 2px;
+        }
+
+        #dc-towers-modal .dc-tower-command-sending {
+            color: #315d6b !important;
+            background: #e5f4f8 !important;
+            border-color: #58abc3 !important;
+            animation: dc-tower-command-pulse .7s ease-in-out infinite
+                alternate;
+        }
+
+        #dc-towers-modal .dc-tower-command-sent {
+            color: #205c39 !important;
+            background: #dff3e6 !important;
+            border-color: #57ad77 !important;
+            box-shadow: inset 0 0 0 2px rgba(87, 173, 119, .14) !important;
+        }
+
+        #dc-towers-modal .dc-tower-action-state {
+            margin-left: 7px;
+            font-weight: 700;
+        }
+
+        @keyframes dc-tower-command-pulse {
+            from {
+                box-shadow: 0 0 0 0 rgba(88, 171, 195, .15);
+            }
+
+            to {
+                box-shadow: 0 0 0 4px rgba(88, 171, 195, .32);
+            }
         }
 
         #dc-towers-modal .dc-towers-modal-footer {
@@ -2214,6 +2286,53 @@
         }
     }
 
+    function atualizarFeedbackTorres(fundo, tipo, mensagem) {
+        const feedback = fundo.querySelector('.dc-towers-feedback');
+        if (!feedback) return;
+
+        const icone = feedback.querySelector('.fa');
+        const texto = feedback.querySelector('.dc-towers-feedback-text');
+        const classesIcone = {
+            idle: 'fa fa-info-circle',
+            sending: 'fa fa-spinner fa-spin',
+            sent: 'fa fa-check-circle',
+            error: 'fa fa-exclamation-triangle'
+        };
+
+        feedback.className =
+            'dc-towers-feedback dc-towers-feedback-' + tipo;
+        icone.className = classesIcone[tipo] || classesIcone.idle;
+        texto.textContent = mensagem;
+    }
+
+    function exibirEstadoBotaoTorre(botao, estado) {
+        botao.classList.remove(
+            'dc-tower-command-sending',
+            'dc-tower-command-sent'
+        );
+
+        if (estado === 'normal') {
+            botao.innerHTML = botao.__dcOriginalHtml;
+            return;
+        }
+
+        const icone = document.createElement('i');
+        const texto = document.createElement('span');
+        texto.className = 'dc-tower-action-state';
+
+        if (estado === 'sending') {
+            botao.classList.add('dc-tower-command-sending');
+            icone.className = 'fa fa-spinner fa-spin';
+            texto.textContent = 'Acionando...';
+        } else {
+            botao.classList.add('dc-tower-command-sent');
+            icone.className = 'fa fa-check';
+            texto.textContent = 'Comando enviado';
+        }
+
+        botao.replaceChildren(icone, texto);
+    }
+
     function criarModalTorres(botoesOriginais) {
         fecharModalTorres();
 
@@ -2245,6 +2364,14 @@
                         do DoctorCondo. O painel continuará disponível após
                         encerrar o formulário oficial.
                     </p>
+                    <div class="dc-towers-feedback dc-towers-feedback-idle"
+                        role="status" aria-live="polite">
+                        <i class="fa fa-info-circle" aria-hidden="true"></i>
+                        <span class="dc-towers-feedback-text">
+                            Selecione a entrada desejada. O resultado oficial
+                            continuará sendo informado pelo DoctorCondo.
+                        </span>
+                    </div>
                     <div class="dc-towers-grid"
                         aria-label="Botões oficiais das torres"></div>
                 </div>
@@ -2264,6 +2391,8 @@
             proxy.type = 'button';
             proxy.className = 'btn btn-default dc-tower-modal-button';
             proxy.innerHTML = original.innerHTML;
+            proxy.__dcOriginalHtml = original.innerHTML;
+            proxy.__dcOriginalButton = original;
             proxy.disabled = botaoEstaDesativado(original);
 
             const rotulo = original.textContent.replace(/\s+/g, ' ').trim();
@@ -2272,6 +2401,12 @@
 
             proxy.addEventListener('click', function () {
                 if (!original.isConnected) {
+                    atualizarFeedbackTorres(
+                        fundo,
+                        'error',
+                        'Não foi possível acionar ' + rotulo +
+                            ': o botão oficial não está mais disponível.'
+                    );
                     window.alert(
                         'O botão oficial desta torre não está mais ' +
                         'disponível. Abra TORRES novamente.'
@@ -2280,13 +2415,87 @@
                 }
 
                 if (botaoEstaDesativado(original)) {
+                    atualizarFeedbackTorres(
+                        fundo,
+                        'error',
+                        'Não foi possível acionar ' + rotulo +
+                            ': o botão oficial está desativado.'
+                    );
                     window.alert(
                         'O botão oficial "' + rotulo + '" está desativado.'
                     );
                     return;
                 }
 
-                original.click();
+                if (proxy.dataset.dcTowerBusy === 'true') return;
+
+                const proxies = Array.from(grade.querySelectorAll(
+                    '.dc-tower-modal-button'
+                ));
+                proxy.dataset.dcTowerBusy = 'true';
+                proxies.forEach(function (botao) {
+                    botao.disabled = true;
+                });
+                exibirEstadoBotaoTorre(proxy, 'sending');
+                atualizarFeedbackTorres(
+                    fundo,
+                    'sending',
+                    'Acionando ' + rotulo + '...'
+                );
+
+                window.setTimeout(function () {
+                    try {
+                        if (!original.isConnected) {
+                            throw new Error(
+                                'O botão oficial não está mais disponível.'
+                            );
+                        }
+
+                        if (botaoEstaDesativado(original)) {
+                            throw new Error(
+                                'O botão oficial está desativado.'
+                            );
+                        }
+
+                        original.click();
+                        exibirEstadoBotaoTorre(proxy, 'sent');
+                        atualizarFeedbackTorres(
+                            fundo,
+                            'sent',
+                            'Comando enviado ao DoctorCondo: ' + rotulo +
+                                ' — ' + new Date().toLocaleTimeString('pt-BR') +
+                                '. O toast nativo informa o resultado oficial.'
+                        );
+                    } catch (erro) {
+                        exibirEstadoBotaoTorre(proxy, 'normal');
+                        atualizarFeedbackTorres(
+                            fundo,
+                            'error',
+                            'Não foi possível acionar ' + rotulo + ': ' +
+                                (erro.message || 'erro desconhecido')
+                        );
+                    } finally {
+                        window.setTimeout(function () {
+                            proxy.dataset.dcTowerBusy = 'false';
+                            proxies.forEach(function (botao) {
+                                const botaoOriginal =
+                                    botao.__dcOriginalButton;
+                                botao.disabled = !botaoOriginal ||
+                                    !botaoOriginal.isConnected ||
+                                    botaoEstaDesativado(botaoOriginal);
+                            });
+                        }, 1000);
+                    }
+
+                    window.setTimeout(function () {
+                        if (
+                            proxy.isConnected &&
+                            proxy.dataset.dcTowerBusy !== 'true'
+                        ) {
+                            exibirEstadoBotaoTorre(proxy, 'normal');
+                        }
+                    }, 5000);
+                }, 280);
             });
 
             grade.appendChild(proxy);
