@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.21
+// @version      4.5.23
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -1742,6 +1742,17 @@
     }
 
     function localizarBotaoEntradaVeiculos() {
+        const botaoGlobal = Array.from(document.querySelectorAll(
+            '.gates-menu button[aria-label], button[aria-label]'
+        )).find(function (botao) {
+            return botao.isConnected &&
+                !botao.closest('#dc-operator-shortcuts') &&
+                normalizarTexto(botao.getAttribute('aria-label')) ===
+                    'abrir entrada de veiculos';
+        });
+
+        if (botaoGlobal) return botaoGlobal;
+
         const candidatosPrincipais = Array.from(
             document.querySelectorAll('.access-control-btn-bar-button')
         );
@@ -1764,6 +1775,18 @@
 
             return normalizarTexto(elemento.textContent) ===
                 'entrada de veiculos';
+        }) || null;
+    }
+
+    function localizarAlternadorPortoesGlobal() {
+        return Array.from(document.querySelectorAll(
+            '.gates-menu [aria-label], ' +
+            'a[aria-label], button[aria-label]'
+        )).find(function (elemento) {
+            return elemento.isConnected &&
+                !elemento.closest('#dc-operator-shortcuts') &&
+                normalizarTexto(elemento.getAttribute('aria-label')) ===
+                    'abrir portao';
         }) || null;
     }
 
@@ -2209,12 +2232,25 @@
             let original = localizarBotaoEntradaVeiculos();
 
             if (!original) {
-                window.location.hash = obterRotaDoctorCondo(
-                    'guest_new_access'
-                );
-                original = await aguardarCondicao(function () {
-                    return localizarBotaoEntradaVeiculos();
-                }, 10000);
+                const alternador = localizarAlternadorPortoesGlobal();
+                if (!alternador) {
+                    throw new Error(
+                        'O menu global "Abrir Portão" não foi encontrado.'
+                    );
+                }
+
+                alternador.click();
+
+                try {
+                    original = await aguardarCondicao(function () {
+                        return localizarBotaoEntradaVeiculos();
+                    }, 3000);
+                } catch (erro) {
+                    throw new Error(
+                        'O botão global "Abrir Entrada de Veículos" ' +
+                        'não apareceu no menu de portões.'
+                    );
+                }
             }
 
             if (botaoEstaDesativado(original)) {
@@ -3795,6 +3831,14 @@
             'aria-busy',
             String(abrindoEntradaVeiculos)
         );
+        const rotuloAbrirPortao = abrirPortao.querySelector(
+            '.dc-operator-shortcut-label'
+        );
+        if (rotuloAbrirPortao) {
+            rotuloAbrirPortao.textContent = abrindoEntradaVeiculos
+                ? 'Abrindo...'
+                : 'Abrir portão';
+        }
 
         const torres = atalhos.querySelector(
             '[data-dc-operator-action="torres"]'
