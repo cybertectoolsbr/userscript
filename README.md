@@ -10,6 +10,13 @@ https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/DoctorCondo-Op
 
 O Tampermonkey verificará novas versões pelo mesmo endereço. Cada publicação válida deve aumentar o campo `@version` do userscript.
 
+## Versão 4.5.25
+
+- A barra mostra a versão carregada na aba, no canto direito, sem encobrir os atalhos.
+- Em janelas estreitas, somente os atalhos rolam horizontalmente; o indicador permanece visível.
+- A extensão Tampermonkey gerencia as atualizações pelo URL configurado, conforme suas preferências de atualização. Publicar no GitHub não substitui o código que já está executando numa aba aberta.
+- Após instalar uma atualização, salve o trabalho pendente e recarregue o DoctorCondo para carregar a nova versão. O script não força recarregamentos.
+
 ## Versão 4.5.24
 
 - TORRES usa as entradas disponíveis no menu global do DoctorCondo sem trocar de página, preservando a câmera e a tela atual.

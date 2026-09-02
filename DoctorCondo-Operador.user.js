@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.24
+// @version      4.5.25
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -13,6 +13,9 @@
 
 (function () {
     'use strict';
+
+    // Mantida em sincronia com @version pelo teste da barra.
+    const VERSAO_SCRIPT = '4.5.25';
 
     const MULTISERVI_URL =
         'https://gestaopro--studio-3133796255-61262.us-east4.hosted.app/';
@@ -122,9 +125,10 @@
             top: 0;
             right: 0;
             left: 0;
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(64px, 1fr) minmax(0, max-content) minmax(64px, 1fr);
+            column-gap: 8px;
             align-items: center;
-            justify-content: center;
             box-sizing: border-box;
             height: 40px;
             padding: 4px 10px;
@@ -137,11 +141,32 @@
             position: static;
             z-index: auto;
             display: flex;
-            flex: 0 0 auto;
+            grid-column: 2;
+            grid-row: 1;
+            min-width: 0;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             gap: 4px;
             height: 32px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        #dc-operator-shortcuts::-webkit-scrollbar {
+            display: none;
+        }
+
+        #dc-operator-version {
+            grid-column: 3;
+            grid-row: 1;
+            justify-self: end;
+            padding: 3px 6px;
+            color: #52616b;
+            background: #f1f5f7;
+            border-radius: 3px;
+            font: 11px/1.4 Arial, sans-serif;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
         }
 
         body.dc-operator-topbar-active .main-header {
@@ -257,6 +282,7 @@
 
         .dc-operator-shortcut {
             display: inline-flex;
+            flex-shrink: 0;
             flex-direction: row;
             align-items: center;
             justify-content: center;
@@ -1338,8 +1364,15 @@
 
         @media (max-width: 700px) {
             #dc-operator-topbar {
-                justify-content: flex-start;
-                overflow-x: auto;
+                grid-template-columns: minmax(0, 1fr) auto;
+            }
+
+            #dc-operator-shortcuts {
+                grid-column: 1;
+            }
+
+            #dc-operator-version {
+                grid-column: 2;
             }
         }
     `;
@@ -3699,6 +3732,17 @@
                 'Faixa de atalhos do operador'
             );
             document.body.insertBefore(faixa, document.body.firstChild);
+        }
+
+        if (!faixa.querySelector('#dc-operator-version')) {
+            const versao = document.createElement('span');
+            versao.id = 'dc-operator-version';
+            versao.textContent = 'v' + VERSAO_SCRIPT;
+            versao.title = 'CYBERTECTOOLS — versão carregada nesta aba: ' +
+                VERSAO_SCRIPT;
+            versao.setAttribute('aria-label',
+                'Versão do userscript: ' + VERSAO_SCRIPT);
+            faixa.appendChild(versao);
         }
 
         document.body.classList.add('dc-operator-topbar-active');
