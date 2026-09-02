@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.23
+// @version      4.5.24
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -2271,31 +2271,77 @@
         }
     }
 
-    function botaoEhDeEntradaDeTorre(botao) {
-        if (!botao || botao.closest('#dc-towers-modal-backdrop')) {
-            return false;
+    function obterRotuloBotaoTorre(botao) {
+        if (!botao || !botao.isConnected || botao.closest(
+            '#dc-towers-modal-backdrop, #dc-operator-shortcuts'
+        )) return '';
+
+        const aria = (botao.getAttribute('aria-label') || '')
+            .replace(/\s+/g, ' ').trim();
+        if (/^abrir entrada torre\s+\S/.test(normalizarTexto(aria))) {
+            return aria.replace(/^abrir\s+/i, '');
         }
 
-        return /^entrada torre\b/.test(
-            normalizarTexto(botao.textContent)
-        );
+        if (!botao.matches('.access-control-btn-bar-button')) return '';
+        const texto = botao.textContent.replace(/\s+/g, ' ').trim();
+        return /^entrada torre\s+\S/.test(normalizarTexto(texto))
+            ? texto : '';
+    }
+
+    function botaoEhDeEntradaDeTorre(botao) {
+        return Boolean(obterRotuloBotaoTorre(botao));
     }
 
     function localizarBotoesTorres() {
-        return Array.from(document.querySelectorAll(
+        const porNome = new Map();
+        // Prioridade ao menu global, inclusive quando o botão está desativado.
+        const globais = Array.from(document.querySelectorAll('button[aria-label]'));
+        const locais = Array.from(document.querySelectorAll(
             '.access-control-btn-bar-button'
-        )).filter(botaoEhDeEntradaDeTorre);
+        ));
+        globais.concat(locais).forEach(function (botao) {
+            const rotulo = obterRotuloBotaoTorre(botao);
+            const chave = normalizarTexto(rotulo);
+            if (chave && !porNome.has(chave)) porNome.set(chave, botao);
+        });
+        return Array.from(porNome.values());
+    }
+
+    async function carregarBotoesTorresSemNavegar() {
+        const existentes = localizarBotoesTorres();
+        if (existentes.length) return existentes;
+
+        const alternador = localizarAlternadorPortoesGlobal();
+        if (!alternador || botaoEstaDesativado(alternador)) {
+            throw new Error('O menu global Abrir Portão não está disponível.');
+        }
+        if (alternador.getAttribute('aria-expanded') !== 'true') {
+            alternador.click();
+        }
+
+        try {
+            return await aguardarCondicao(function () {
+                const encontrados = localizarBotoesTorres();
+                return encontrados.length ? encontrados : null;
+            }, 3000);
+        } catch (erro) {
+            throw new Error(
+                'As entradas das torres não apareceram no menu global. ' +
+                'A página atual foi mantida.'
+            );
+        }
     }
 
     function localizarBotaoTorrePorRotulo(rotulo) {
         const procurado = normalizarTexto(rotulo);
         return localizarBotoesTorres().find(function (botao) {
-            return normalizarTexto(botao.textContent) === procurado;
+            return normalizarTexto(obterRotuloBotaoTorre(botao)) === procurado;
         }) || null;
     }
 
     function atualizarDisponibilidadeBotoesModalTorres(grade) {
         if (!grade || !grade.isConnected) return;
+        if (grade.querySelector('[data-dc-tower-busy="true"]')) return;
 
         grade.querySelectorAll('.dc-tower-modal-button')
             .forEach(function (proxy) {
@@ -2305,7 +2351,9 @@
                     proxy.__dcTowerLabel
                 );
                 proxy.__dcOriginalButton = original;
-                proxy.disabled = !original || botaoEstaDesativado(original);
+                proxy.disabled = original
+                    ? botaoEstaDesativado(original)
+                    : !localizarAlternadorPortoesGlobal();
             });
     }
 
@@ -2401,6 +2449,7 @@
 
         const fundo = document.createElement('div');
         fundo.id = 'dc-towers-modal-backdrop';
+        fundo.__dcTowerContext = obterContextoCondominio()?.base || '';
         fundo.innerHTML = `
             <section id="dc-towers-modal"
                 role="dialog"
@@ -2422,8 +2471,8 @@
                     <p class="dc-towers-warning">
                         <strong>Atenção:</strong> confirme a torre antes de
                         clicar. Cada opção aciona o respectivo botão oficial
-                        do DoctorCondo. O painel continuará disponível após
-                        encerrar o formulário oficial.
+                        do DoctorCondo e pode abrir a porta imediatamente.
+                        O painel e a página atual permanecem abertos.
                     </p>
                     <div class="dc-towers-feedback dc-towers-feedback-idle"
                         role="status" aria-live="polite">
@@ -2451,12 +2500,16 @@
             const proxy = document.createElement('button');
             proxy.type = 'button';
             proxy.className = 'btn btn-default dc-tower-modal-button';
-            proxy.innerHTML = original.innerHTML;
-            proxy.__dcOriginalHtml = original.innerHTML;
+            const rotulo = obterRotuloBotaoTorre(original);
+            const icone = document.createElement('i');
+            icone.className = 'fa fa-building';
+            icone.setAttribute('aria-hidden', 'true');
+            proxy.appendChild(icone);
+            proxy.appendChild(document.createTextNode(' ' + rotulo));
+            proxy.__dcOriginalHtml = proxy.innerHTML;
             proxy.__dcOriginalButton = original;
             proxy.disabled = botaoEstaDesativado(original);
 
-            const rotulo = original.textContent.replace(/\s+/g, ' ').trim();
             proxy.__dcTowerLabel = rotulo;
             proxy.title = rotulo;
             proxy.setAttribute('aria-label', rotulo);
@@ -2464,20 +2517,6 @@
             proxy.addEventListener('click', function () {
                 let botaoOriginal = localizarBotaoTorrePorRotulo(rotulo);
                 proxy.__dcOriginalButton = botaoOriginal;
-
-                if (!botaoOriginal) {
-                    atualizarFeedbackTorres(
-                        fundo,
-                        'error',
-                        'Não foi possível acionar ' + rotulo +
-                            ': o botão oficial não está mais disponível.'
-                    );
-                    window.alert(
-                        'O botão oficial desta torre não está mais ' +
-                        'disponível. Abra TORRES novamente.'
-                    );
-                    return;
-                }
 
                 if (botaoEstaDesativado(botaoOriginal)) {
                     atualizarFeedbackTorres(
@@ -2508,10 +2547,25 @@
                     'Acionando ' + rotulo + '...'
                 );
 
-                window.setTimeout(function () {
+                window.setTimeout(async function () {
                     try {
+                        if (!fundo.isConnected) return;
+                        const contextoAtual = obterContextoCondominio()?.base || '';
+                        if (contextoAtual !== fundo.__dcTowerContext) {
+                            throw new Error('O contexto mudou. Feche e reabra TORRES.');
+                        }
                         botaoOriginal = localizarBotaoTorrePorRotulo(rotulo);
+                        if (!botaoOriginal) {
+                            await carregarBotoesTorresSemNavegar();
+                            botaoOriginal = localizarBotaoTorrePorRotulo(rotulo);
+                        }
                         proxy.__dcOriginalButton = botaoOriginal;
+
+                        if (!fundo.isConnected) return;
+                        if ((obterContextoCondominio()?.base || '') !==
+                            fundo.__dcTowerContext) {
+                            throw new Error('O contexto mudou. Feche e reabra TORRES.');
+                        }
 
                         if (!botaoOriginal) {
                             throw new Error(
@@ -2600,20 +2654,10 @@
         prepararAtalhosOperador();
 
         try {
-            let botoes = localizarBotoesTorres();
-
-            if (!botoes.length) {
-                const rota = obterRotaDoctorCondo('guest_new_access');
-                const atual = window.location.hash.replace(/\/$/, '');
-
-                if (atual !== rota.replace(/\/$/, '')) {
-                    window.location.hash = rota;
-                }
-
-                botoes = await aguardarCondicao(function () {
-                    const encontrados = localizarBotoesTorres();
-                    return encontrados.length ? encontrados : null;
-                }, 10000);
+            const contextoInicial = obterContextoCondominio()?.base || '';
+            const botoes = await carregarBotoesTorresSemNavegar();
+            if ((obterContextoCondominio()?.base || '') !== contextoInicial) {
+                throw new Error('O contexto mudou. Abra TORRES novamente.');
             }
 
             prepararBotoesTorres();
