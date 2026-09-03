@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.26
+// @version      4.5.27
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -159,10 +159,7 @@
     // END DC_UPDATE_CHECKER
 
     // Mantida em sincronia com @version pelo teste da barra.
-    const VERSAO_SCRIPT = '4.5.26';
-
-    const MULTISERVI_URL =
-        'https://gestaopro--studio-3133796255-61262.us-east4.hosted.app/';
+    const VERSAO_SCRIPT = '4.5.27';
     const CHAVE_ROTA_CAMERA_PLACA = 'dc-operator-plate-camera-route';
     const PARAMETRO_CAMERA_EM_QUADRO = 'dc_plate_panel';
     const CHAVE_NOTAS_OPERADOR = 'dc-operator-notes-v1';
@@ -3994,12 +3991,6 @@
                 '<i class="fa fa-sticky-note"></i>',
                 false
             ));
-            atalhos.appendChild(criarAtalhoOperador(
-                'multiservi',
-                'MULTISERVI',
-                '<i class="fa fa-external-link"></i>',
-                false
-            ));
             const verPlaca = criarAtalhoOperador(
                 'ver-placa',
                 'VER PLACA',
@@ -4041,13 +4032,6 @@
                     break;
                 case 'notas':
                     abrirModalNotas();
-                    break;
-                case 'multiservi':
-                    window.open(
-                        MULTISERVI_URL,
-                        '_blank',
-                        'noopener,noreferrer'
-                    );
                     break;
                 case 'ver-placa':
                     abrirPainelCameraPlaca(evento.shiftKey);
