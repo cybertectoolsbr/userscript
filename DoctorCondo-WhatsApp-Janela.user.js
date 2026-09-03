@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - WhatsApp em janela
 // @namespace    doctorcondo-whatsapp-janela
-// @version      0.4.2
+// @version      0.4.3
 // @author       CYBERTECTOOLS
 // @description  Reutiliza uma janela do WhatsApp Web pela barra, pelos moradores e pelo compartilhamento dos horários
 // @match        https://app2.doctorcondo.com.br/*
@@ -178,7 +178,7 @@
 
     const ID = 'dc-whatsapp-janela';
     // Versão do código carregado nesta página; manter igual ao @version.
-    const VERSAO_SCRIPT = '0.4.2';
+    const VERSAO_SCRIPT = '0.4.3';
     const DESTINO = 'https://web.whatsapp.com/';
     const REGISTRO = 'dcWhatsappJanela';
     const FOCO = ID + '-foco';
@@ -561,6 +561,15 @@
             #${ID} svg { width: 17px; height: 17px; flex-shrink: 0; }
             #${ID} .dc-waj-versao-botao {
                 font: 10px/1.2 Arial, sans-serif; color: #d8f3e4; white-space: nowrap;
+            }
+            @media (max-width: 1299px) {
+                #dc-operator-shortcuts #${ID} {
+                    box-sizing: border-box; width: 32px; min-width: 32px;
+                    padding-right: 4px; padding-left: 4px; gap: 0;
+                    justify-content: center;
+                }
+                #dc-operator-shortcuts #${ID} .dc-operator-shortcut-label,
+                #dc-operator-shortcuts #${ID} .dc-waj-versao-botao { display: none; }
             }
             #${ID}.dc-waj-flutuante {
                 position: fixed; right: 20px; bottom: 20px; z-index: 1210;
