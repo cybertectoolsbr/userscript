@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WhatsApp Web - Modo celular
 // @namespace    cybertectools-whatsapp-celular
-// @version      0.1.3
+// @version      0.1.4
 // @author       CYBERTECTOOLS
 // @description  Organiza o WhatsApp Web em uma coluna, alternando entre conversas e chat
 // @match        https://web.whatsapp.com/*
@@ -162,9 +162,11 @@
 
     const ID = 'wac-modo-celular';
     // Versão do código carregado nesta página; manter igual ao @version.
-    const VERSAO_SCRIPT = '0.1.3';
+    const VERSAO_SCRIPT = '0.1.4';
     const CHAVE = 'cybertectools-whatsapp-modo-celular-v1';
     const ATRIBUTO = 'data-wac-layout';
+    const ATRIBUTO_SOBREPOSICAO = 'data-wac-sobreposicao';
+    const ATRIBUTO_DOWNLOAD = 'data-wac-download';
     let compacto = true;
     try { compacto = localStorage.getItem(CHAVE) !== 'pc'; } catch (_) { /* Preferência opcional. */ }
     let vista = 'lista';
@@ -175,6 +177,8 @@
     let host;
     let controles;
     let assinatura = [];
+    let sobreposicoes = new Set();
+    let promocoesDownload = new Set();
 
     function marcar(elemento, valor) {
         if (!elemento || elemento === document.body || elemento === document.documentElement) return;
@@ -185,8 +189,76 @@
     function limparLayout() {
         marcados.forEach((elemento) => elemento.removeAttribute(ATRIBUTO));
         marcados.clear();
+        sobreposicoes.forEach((elemento) => {
+            elemento.removeAttribute(ATRIBUTO_SOBREPOSICAO);
+            elemento.style.removeProperty('--wac-sobreposicao-topo');
+            elemento.style.removeProperty('--wac-sobreposicao-largura');
+        });
+        sobreposicoes.clear();
+        promocoesDownload.forEach((elemento) => elemento.removeAttribute(ATRIBUTO_DOWNLOAD));
+        promocoesDownload.clear();
         assinatura = [];
         document.documentElement.classList.remove('wac-ativo', 'wac-lista', 'wac-conversa');
+    }
+
+    function sincronizarMarcacoes(anteriores, novas, atributo) {
+        anteriores.forEach((elemento) => {
+            if (!novas.has(elemento)) elemento.removeAttribute(atributo);
+        });
+        novas.forEach((valor, elemento) => {
+            if (elemento.getAttribute(atributo) !== valor) elemento.setAttribute(atributo, valor);
+        });
+        return new Set(novas.keys());
+    }
+
+    function ajustarSobreposicoes(raiz) {
+        const novas = new Map();
+        const larguraDisponivel = Math.min(480, window.innerWidth);
+        const larguraMaxima = Math.max(1, larguraDisponivel - 16);
+        const larguraMinima = Math.min(280, larguraMaxima);
+        const limiteInferior = Math.max(96, window.innerHeight - 88);
+        for (const painel of raiz.querySelectorAll('[role="dialog"], [aria-modal="true"]')) {
+            const caixa = painel.getBoundingClientRect();
+            if (caixa.width < 2 || caixa.height < 2) continue;
+            const largura = Math.min(Math.max(larguraMinima, caixa.width), larguraMaxima);
+            const altura = Math.min(caixa.height, limiteInferior - 8);
+            const topo = Math.min(Math.max(8, caixa.top), Math.max(8, limiteInferior - altura));
+            novas.set(painel, 'painel');
+            for (let elemento = painel.parentElement; elemento && elemento !== raiz; elemento = elemento.parentElement) {
+                novas.set(elemento, 'caminho');
+            }
+            const topoCss = Math.round(topo) + 'px';
+            const larguraCss = Math.round(largura) + 'px';
+            if (painel.style.getPropertyValue('--wac-sobreposicao-topo') !== topoCss) {
+                painel.style.setProperty('--wac-sobreposicao-topo', topoCss);
+            }
+            if (painel.style.getPropertyValue('--wac-sobreposicao-largura') !== larguraCss) {
+                painel.style.setProperty('--wac-sobreposicao-largura', larguraCss);
+            }
+        }
+        sobreposicoes.forEach((elemento) => {
+            if (novas.has(elemento)) return;
+            elemento.style.removeProperty('--wac-sobreposicao-topo');
+            elemento.style.removeProperty('--wac-sobreposicao-largura');
+        });
+        sobreposicoes = sincronizarMarcacoes(sobreposicoes, novas, ATRIBUTO_SOBREPOSICAO);
+    }
+
+    function ocultarPromocaoDownload(lateral) {
+        const novas = new Map();
+        const normalizar = (texto) => (texto || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
+        for (const controle of lateral.querySelectorAll('a, button, [role="button"]')) {
+            const texto = normalizar(controle.textContent);
+            if (!texto.includes('baixar o whatsapp') || !texto.includes('windows')) continue;
+            let bloco = controle;
+            for (let pai = controle.parentElement; pai && pai !== lateral; pai = pai.parentElement) {
+                const caixa = pai.getBoundingClientRect();
+                if (caixa.height > 180 || normalizar(pai.textContent) !== texto) break;
+                bloco = pai;
+            }
+            novas.set(bloco, 'oculto');
+        }
+        promocoesDownload = sincronizarMarcacoes(promocoesDownload, novas, ATRIBUTO_DOWNLOAD);
     }
 
     function encontrarRaiz(lateral, chat) {
@@ -243,14 +315,18 @@
                 if (filho === listaRamo || filho === chatRamo) continue;
                 const navegacao = filho.matches('nav, [role="navigation"]') ||
                     filho.querySelector('nav, [role="navigation"]');
+                const sobreposicao = filho.matches('[role="dialog"], [aria-modal="true"]') ||
+                    filho.querySelector('[role="dialog"], [aria-modal="true"]');
                 if (navegacao) marcar(filho, 'navegacao');
-                else if (chat) marcar(filho, 'auxiliar');
+                else if (chat || sobreposicao) marcar(filho, 'auxiliar');
                 else marcar(filho, 'inicio');
             }
         }
         document.documentElement.classList.add('wac-ativo');
         document.documentElement.classList.toggle('wac-lista', vista === 'lista');
         document.documentElement.classList.toggle('wac-conversa', vista === 'conversa');
+        ajustarSobreposicoes(raiz);
+        ocultarPromocaoDownload(lateral);
         return true;
     }
 
@@ -347,7 +423,21 @@
                 position:absolute !important; inset:0 !important; z-index:5 !important;
                 min-width:0 !important; max-width:100% !important; width:100% !important;
             }
-            html.wac-lista [data-wac-layout="auxiliar"] { display:none !important; }
+            html.wac-ativo [data-wac-sobreposicao="caminho"] {
+                transform:none !important; perspective:none !important; filter:none !important;
+                contain:none !important; min-width:0 !important; max-width:100% !important;
+            }
+            html.wac-ativo [data-wac-sobreposicao="painel"] {
+                position:fixed !important;
+                top:var(--wac-sobreposicao-topo, 8px) !important; bottom:auto !important;
+                left:50% !important; right:auto !important;
+                width:var(--wac-sobreposicao-largura, calc(100vw - 16px)) !important;
+                min-width:0 !important; max-width:calc(min(100vw, 480px) - 16px) !important;
+                max-height:calc(100dvh - 96px) !important; margin:0 !important;
+                box-sizing:border-box !important; transform:translateX(-50%) !important;
+                overflow:auto !important; z-index:20 !important;
+            }
+            html.wac-ativo [data-wac-download="oculto"] { display:none !important; }
             html.wac-ativo #side, html.wac-ativo #main {
                 width:100% !important; min-width:0 !important; max-width:100% !important;
             }

@@ -10,7 +10,7 @@ Com o Tampermonkey instalado, use o link de cada script:
 | --- | --- | --- |
 | DoctorCondo - personal | 4.5.27 | [Barra do operador](https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/DoctorCondo-Operador.user.js) |
 | DoctorCondo - WhatsApp em janela | 0.4.3 | [Janela do WhatsApp](https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/DoctorCondo-WhatsApp-Janela.user.js) |
-| WhatsApp Web - Modo celular | 0.1.3 | [Modo celular](https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/WhatsApp-Modo-Celular.user.js) |
+| WhatsApp Web - Modo celular | 0.1.4 | [Modo celular](https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/WhatsApp-Modo-Celular.user.js) |
 
 Para usar o conjunto completo, mantenha os três scripts ativos, com somente uma cópia de cada. O complemento de janela precisa executar no DoctorCondo e no WhatsApp, no mesmo perfil do navegador. O modo celular executa somente no WhatsApp. O antigo `DoctorCondo - WhatsApp Web (TESTE)` pode ser desativado; sua função está incluída no complemento de janela.
 
@@ -22,11 +22,11 @@ O Tampermonkey verifica novas versões pelo endereço próprio de cada script, c
 
 - **Barra 4.5.27:** indicador no canto direito da barra do DoctorCondo. O atalho MULTISERVI foi removido.
 - **Janela 0.4.3:** texto pequeno junto ao botão WhatsApp em tela larga; o modal de **Shift + clique** também mostra a versão no canto inferior direito.
-- **Celular 0.1.3:** canto inferior direito do rodapé do WhatsApp, abaixo dos controles, também disponível no modo PC.
+- **Celular 0.1.4:** canto inferior direito do rodapé do WhatsApp, abaixo dos controles, também disponível no modo PC.
 
 O número mostra o código que está executando na página; não consulta a última versão no GitHub. Depois de instalar uma atualização, preserve formulários/rascunhos e recarregue as páginas correspondentes. Para o complemento de janela, recarregue DoctorCondo e WhatsApp. Não há recarga forçada.
 
-## Botão Verificar atualização — 4.5.26 / 0.4.2 / 0.1.3
+## Botão Verificar atualização — 4.5.27 / 0.4.3 / 0.1.4
 
 O pequeno **↻** tem a descrição **Verificar atualização** ao passar o mouse e pode ser acessado pelo teclado:
 
@@ -42,7 +42,7 @@ O conteúdo baixado não é executado. A instalação continua sob controle do T
 
 ## Complementos WhatsApp
 
-A janela integra o botão da barra, o atalho do morador e os textos de Horários. O modo celular organiza lista e conversa em uma coluna de até 480 pixels e mantém os controles Conversas, Conversa, Modo PC e ajuste de largura. A escolha do destinatário para compartilhar horários e o envio de mensagens continuam manuais.
+A janela integra o botão da barra, o atalho do morador e os textos de Horários. O modo celular organiza lista e conversa em uma coluna de até 480 pixels, ajusta os painéis nativos à largura disponível, oculta a faixa de download do aplicativo somente no modo compacto e mantém os controles Conversas, Conversa, Modo PC e ajuste de largura. A escolha do destinatário para compartilhar horários e o envio de mensagens continuam manuais.
 
 As versões 0.4.1 e 0.1.2 acrescentam identificação visual e endereços de atualização. Não representam uma correção confirmada para o relato de duas janelas. O reaproveitamento passou em simulações locais; instalação, foco e comportamento na sessão real do WhatsApp ainda precisam de verificação.
 
