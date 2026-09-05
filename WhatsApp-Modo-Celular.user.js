@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WhatsApp Web - Modo celular
 // @namespace    cybertectools-whatsapp-celular
-// @version      0.1.4
+// @version      0.1.5
 // @author       CYBERTECTOOLS
 // @description  Organiza o WhatsApp Web em uma coluna, alternando entre conversas e chat
 // @match        https://web.whatsapp.com/*
@@ -162,7 +162,7 @@
 
     const ID = 'wac-modo-celular';
     // Versão do código carregado nesta página; manter igual ao @version.
-    const VERSAO_SCRIPT = '0.1.4';
+    const VERSAO_SCRIPT = '0.1.5';
     const CHAVE = 'cybertectools-whatsapp-modo-celular-v1';
     const ATRIBUTO = 'data-wac-layout';
     const ATRIBUTO_SOBREPOSICAO = 'data-wac-sobreposicao';
@@ -179,6 +179,7 @@
     let assinatura = [];
     let sobreposicoes = new Set();
     let promocoesDownload = new Set();
+    let anexoPendenteAte = 0;
 
     function marcar(elemento, valor) {
         if (!elemento || elemento === document.body || elemento === document.documentElement) return;
@@ -290,6 +291,38 @@
         return atual.parentElement === raiz ? atual : null;
     }
 
+    function ehPreviaAnexo(elemento) {
+        if (!elemento) return false;
+        const midiaOuLegenda = elemento.querySelector(
+            'img, video, canvas, input[type="file"], textarea, [contenteditable="true"]'
+        );
+        for (const controle of elemento.querySelectorAll('button, [role="button"]')) {
+            const rotulo = (controle.getAttribute('aria-label') || controle.getAttribute('title') || '')
+                .replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt-BR');
+            const iconeElemento = controle.matches('[data-icon]') ? controle : controle.querySelector('[data-icon]');
+            const icone = (iconeElemento?.getAttribute('data-icon') || '').toLocaleLowerCase('pt-BR');
+            const botaoEnviar = rotulo === 'enviar' || rotulo.startsWith('enviar ') ||
+                rotulo === 'send' || rotulo.startsWith('send ') ||
+                /(^|[-_])send($|[-_])/.test(icone);
+            if (botaoEnviar && (midiaOuLegenda || Date.now() < anexoPendenteAte)) return true;
+        }
+        return false;
+    }
+
+    function registrarAnexo(evento) {
+        let possuiArquivo = false;
+        if (evento.type === 'paste') {
+            possuiArquivo = Array.from(evento.clipboardData?.items || []).some((item) => item.kind === 'file');
+        } else {
+            const alvo = evento.target;
+            possuiArquivo = alvo instanceof HTMLInputElement && alvo.type === 'file' && alvo.files?.length > 0;
+        }
+        if (!possuiArquivo) return;
+        // Guarda somente uma janela de tempo; nenhum nome, tipo ou conteúdo do arquivo é lido.
+        anexoPendenteAte = Date.now() + 60000;
+        agendar();
+    }
+
     function aplicarLayout(lateral, chat) {
         const raiz = encontrarRaiz(lateral, chat);
         if (!raiz) return false;
@@ -317,8 +350,9 @@
                     filho.querySelector('nav, [role="navigation"]');
                 const sobreposicao = filho.matches('[role="dialog"], [aria-modal="true"]') ||
                     filho.querySelector('[role="dialog"], [aria-modal="true"]');
+                const previaAnexo = ehPreviaAnexo(filho);
                 if (navegacao) marcar(filho, 'navegacao');
-                else if (chat || sobreposicao) marcar(filho, 'auxiliar');
+                else if (chat || sobreposicao || previaAnexo) marcar(filho, 'auxiliar');
                 else marcar(filho, 'inicio');
             }
         }
@@ -449,7 +483,10 @@
                 position:fixed !important; bottom:0 !important; left:0 !important; right:0 !important;
                 width:min(100%,480px) !important; margin:0 auto !important; z-index:2147483000 !important;
             }
-            #${ID}.wac-pc { width:max-content !important; max-width:100% !important; left:auto !important; }
+            #${ID}.wac-pc {
+                width:max-content !important; max-width:calc(100% - 16px) !important;
+                left:8px !important; right:auto !important; bottom:8px !important;
+            }
             #${ID}[hidden] { display:none !important; }
         `;
         document.head.appendChild(estilo);
@@ -507,6 +544,8 @@
         document.body.appendChild(host);
         document.addEventListener('click', selecionarChat, true);
         document.addEventListener('keydown', selecionarChat, true);
+        document.addEventListener('paste', registrarAnexo, true);
+        document.addEventListener('change', registrarAnexo, true);
         window.addEventListener('resize', agendar);
         // Observa somente a estrutura: não lê ou armazena mensagens/contatos.
         new MutationObserver(agendar).observe(document.body, { childList:true, subtree:true });
