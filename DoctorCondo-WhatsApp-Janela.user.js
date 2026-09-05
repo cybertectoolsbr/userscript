@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - WhatsApp em janela
 // @namespace    doctorcondo-whatsapp-janela
-// @version      0.4.3
+// @version      0.4.4
 // @author       CYBERTECTOOLS
 // @description  Reutiliza uma janela do WhatsApp Web pela barra, pelos moradores e pelo compartilhamento dos horários
 // @match        https://app2.doctorcondo.com.br/*
@@ -11,6 +11,7 @@
 // @grant        GM_getTab
 // @grant        GM_saveTab
 // @grant        GM_getTabs
+// @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
 // @grant        GM_addValueChangeListener
@@ -178,16 +179,19 @@
 
     const ID = 'dc-whatsapp-janela';
     // Versão do código carregado nesta página; manter igual ao @version.
-    const VERSAO_SCRIPT = '0.4.3';
+    const VERSAO_SCRIPT = '0.4.4';
     const DESTINO = 'https://web.whatsapp.com/';
     const REGISTRO = 'dcWhatsappJanela';
     const FOCO = ID + '-foco';
     const RESPOSTA = ID + '-resposta';
     const PRONTA = ID + '-pronta';
+    const ABERTURA = ID + '-abertura';
+    const PRAZO_ABERTURA = 120000;
     const PROTOCOLO = 2;
     const ehWhatsApp = window.location.hostname === 'web.whatsapp.com';
     const temPermissoes = typeof GM_getTabs === 'function' &&
         typeof GM_getTab === 'function' && typeof GM_saveTab === 'function' &&
+        typeof GM_getValue === 'function' &&
         typeof GM_setValue === 'function' && typeof GM_deleteValue === 'function' &&
         typeof GM_addValueChangeListener === 'function' &&
         typeof GM_removeValueChangeListener === 'function' && typeof GM_openInTab === 'function';
@@ -245,9 +249,8 @@
         if (!link) return;
         const conversa = interpretarLinkWhatsApp(link);
         if (!conversa) return;
-        // A barra de horários cria um <a> temporário sem classe e chama click().
-        // Aceitar textos sem telefone; manter a seleção específica para moradores.
-        if (conversa.numero && !link.matches('.link-phone-whatsapp')) return;
+        // A barra de horários e outros módulos podem criar links temporários ou
+        // usar classes diferentes. Todo destino WhatsApp válido usa a janela gerenciada.
         evento.preventDefault();
         evento.stopImmediatePropagation();
         abrirJanela('janela', conversa);
@@ -295,7 +298,10 @@
             });
         }
         await consultarApi((cb) => GM_saveTab(aba, cb));
-        if (ehWhatsApp) GM_setValue(PRONTA, { id: aba[REGISTRO].id, quando: Date.now() });
+        if (ehWhatsApp) {
+            await Promise.resolve(GM_deleteValue(ABERTURA));
+            GM_setValue(PRONTA, { id: aba[REGISTRO].id, quando: Date.now() });
+        }
         return aba;
     }) : Promise.resolve(null);
     // Evita rejeição sem tratamento enquanto o usuário ainda não clicou.
@@ -357,6 +363,18 @@
         const aba = await cadastro;
         aba[REGISTRO].abrindoAte = ate;
         await consultarApi((cb) => GM_saveTab(aba, cb));
+        if (ate > 0) {
+            await Promise.resolve(GM_setValue(ABERTURA, {
+                id: aba[REGISTRO].id, quando: Date.now(), ate
+            }));
+        } else await Promise.resolve(GM_deleteValue(ABERTURA));
+    }
+
+    async function consultarAberturaCompartilhada() {
+        const abertura = await Promise.resolve(GM_getValue(ABERTURA, null));
+        if (!abertura || typeof abertura !== 'object' ||
+            typeof abertura.ate !== 'number' || abertura.ate <= 0) return null;
+        return abertura;
     }
 
     if (temPermissoes) GM_addValueChangeListener(PRONTA, () => {
@@ -406,12 +424,18 @@
                     else mostrarOpcoes('O WhatsApp já está aberto, mas não respondeu. Vá até ele com Alt + Tab e recarregue essa página. Nenhuma nova janela foi aberta.');
                     return;
                 }
+                const aberturaCompartilhada = await consultarAberturaCompartilhada();
+                if (aberturaCompartilhada) {
+                    mostrarOpcoes('Aguarde a janela do WhatsApp terminar de abrir. A trava compartilhada impediu outra guia. Se você fechou essa janela, use a liberação manual.',
+                        aberturaCompartilhada.ate < Date.now());
+                    return;
+                }
                 const pendente = registros.find((aba) => aba.abrindoAte > 0);
                 if (pendente) {
                     mostrarOpcoes('Aguarde o WhatsApp terminar de abrir. Se ele já carregou, recarregue a página do WhatsApp para ativar o complemento. Uma demora não abre outra janela automaticamente.', pendente.abrindoAte < Date.now());
                     return;
                 }
-                await marcarAbertura(Date.now() + 30000);
+                await marcarAbertura(Date.now() + PRAZO_ABERTURA);
                 if (!abrirNovaJanela(modo, conversa)) await marcarAbertura(0);
             };
             // Serializa também cliques vindos de duas abas do DoctorCondo.
