@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - WhatsApp em janela
 // @namespace    doctorcondo-whatsapp-janela
-// @version      0.4.5
+// @version      0.4.6
 // @author       CYBERTECTOOLS
 // @description  Reutiliza uma janela do WhatsApp Web pela barra, pelos moradores e pelo compartilhamento dos horários
 // @match        https://app2.doctorcondo.com.br/*
@@ -27,149 +27,6 @@
 (function () {
     'use strict';
 
-    // BEGIN DC_UPDATE_CHECKER
-    // Incorporado nos três userscripts por scripts/sync-update-checker.mjs.
-    // Sem execução de código remoto: somente lê o cabeçalho e oferece o link fixo.
-    function criarVerificadorAtualizacao({ id, nome, versao, arquivo, namespace }) {
-        const url = 'https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/' + arquivo;
-        const host = document.createElement('span');
-        host.id = id;
-        const raiz = host.attachShadow({ mode: 'open' });
-        raiz.innerHTML = `
-            <style>
-                :host { display:inline-flex; vertical-align:middle; flex-shrink:0; }
-                button, a { font:12px/1.4 Arial,sans-serif; cursor:pointer; }
-                .verificar { width:20px; height:16px; padding:0; border:0; border-radius:3px;
-                    background:transparent; color:inherit; font-size:15px; line-height:16px; }
-                .verificar:hover { background:#879a9633; }
-                :focus-visible { outline:2px solid #47a681; outline-offset:1px; }
-                dialog { box-sizing:border-box; width:min(410px,calc(100vw - 28px));
-                    max-height:calc(100dvh - 28px); overflow:auto; padding:22px;
-                    border:1px solid #a5bcb1; border-radius:12px; background:#fff; color:#243c31;
-                    box-shadow:0 12px 48px #0004; font:14px/1.5 Arial,sans-serif; white-space:normal; text-align:left; }
-                dialog::backdrop { background:#10271d88; }
-                h2 { margin:0 0 12px; font-size:18px; }
-                p { margin:0 0 12px; }
-                .nota { color:#52685d; font-size:12px; }
-                .acoes { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
-                .acoes button, .acoes a { display:inline-block; padding:7px 10px;
-                    background:#f4f8f6; color:#174f33; border:1px solid #b9cdc2;
-                    border-radius:6px; text-decoration:none; }
-                [hidden] { display:none !important; }
-            </style>
-            <button class="verificar" type="button">↻</button>
-            <dialog aria-labelledby="titulo" aria-describedby="estado">
-                <h2 id="titulo"></h2>
-                <p class="carregada"></p>
-                <p id="estado" role="status" aria-live="polite"></p>
-                <p class="nota">Após instalar, preserve formulários e rascunhos e recarregue a página para carregar a nova versão.</p>
-                <div class="acoes">
-                    <a class="instalar" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden></a>
-                    <button class="fechar" type="button">Fechar</button>
-                </div>
-            </dialog>`;
-        const botao = raiz.querySelector('.verificar');
-        const modal = raiz.querySelector('dialog');
-        const estado = raiz.querySelector('#estado');
-        const instalar = raiz.querySelector('.instalar');
-        botao.title = 'Verificar atualização — ' + nome;
-        botao.setAttribute('aria-label', botao.title);
-        raiz.querySelector('h2').textContent = nome;
-        raiz.querySelector('.carregada').textContent = 'Versão carregada: v' + versao;
-        instalar.href = url;
-        raiz.querySelector('.fechar').addEventListener('click', () => modal.close());
-        let consultando = false;
-
-        function consultarPelaPonte() {
-            return new Promise((resolve, reject) => {
-                const pedido = crypto.randomUUID();
-                const tempo = window.setTimeout(() => terminar(new Error('Sem resposta')), 17000);
-                function terminar(erro, texto) {
-                    window.clearTimeout(tempo);
-                    document.removeEventListener('dc-updates-response', receber);
-                    if (erro) reject(erro); else resolve(texto);
-                }
-                function receber(evento) {
-                    try {
-                        const resposta = JSON.parse(evento.detail);
-                        if (resposta.id !== pedido) return;
-                        if (typeof resposta.texto !== 'string') terminar(new Error('Falha na consulta'));
-                        else terminar(null, resposta.texto);
-                    } catch (_) { /* Ignorar eventos fora do protocolo. */ }
-                }
-                document.addEventListener('dc-updates-response', receber);
-                document.dispatchEvent(new CustomEvent('dc-updates-request', {
-                    detail: JSON.stringify({ id: pedido, arquivo })
-                }));
-            });
-        }
-
-        async function consultar() {
-            // O complemento de janela fornece a consulta via extensão nos dois sites.
-            if (document.documentElement.hasAttribute('data-dc-updates-bridge')) return consultarPelaPonte();
-            // Uso independente: consulta pública; bloqueios de rede/CSP têm saída manual.
-            const controlador = new AbortController();
-            const tempo = window.setTimeout(() => controlador.abort(), 12000);
-            try {
-                const resposta = await fetch(url + '?dc_update=' + Date.now(), {
-                    credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer',
-                    redirect: 'error', signal: controlador.signal
-                });
-                if (!resposta.ok) throw new Error('Resposta HTTP inválida');
-                return await resposta.text();
-            } finally { window.clearTimeout(tempo); }
-        }
-
-        function lerVersao(texto) {
-            if (typeof texto !== 'string' || texto.length > 1000000) throw new Error('Arquivo inválido');
-            const cabecalho = texto.match(/^\s*\/\/ ==UserScript==\r?\n([\s\S]*?)^\/\/ ==\/UserScript==/m)?.[1];
-            if (!cabecalho) throw new Error('Cabeçalho ausente');
-            const campo = (chave) => cabecalho.match(new RegExp('^// @' + chave + '\\s+([^\\r\\n]+)', 'm'))?.[1].trim();
-            const publicada = campo('version');
-            if (campo('name') !== nome || campo('namespace') !== namespace ||
-                !/^\d{1,6}(?:\.\d{1,6}){1,4}$/.test(publicada || '')) throw new Error('Identidade ou versão inválida');
-            return publicada;
-        }
-
-        function comparar(a, b) {
-            const partesA = a.split('.').map(Number), partesB = b.split('.').map(Number);
-            for (let i = 0; i < Math.max(partesA.length, partesB.length); i++) {
-                const diferenca = (partesA[i] || 0) - (partesB[i] || 0);
-                if (diferenca) return Math.sign(diferenca);
-            }
-            return 0;
-        }
-
-        botao.addEventListener('click', async (evento) => {
-            evento.preventDefault();
-            evento.stopPropagation();
-            if (!modal.open) modal.showModal();
-            if (consultando) return;
-            consultando = true;
-            botao.disabled = true;
-            instalar.hidden = true;
-            estado.textContent = 'Verificando atualização…';
-            try {
-                const publicada = lerVersao(await consultar());
-                const comparacao = comparar(publicada, versao);
-                if (comparacao > 0) {
-                    estado.textContent = 'Nova versão disponível: v' + publicada + '.';
-                    instalar.textContent = 'Instalar v' + publicada;
-                    instalar.hidden = false;
-                } else if (comparacao === 0) estado.textContent = 'Esta página já está na versão publicada: v' + publicada + '.';
-                else estado.textContent = 'A versão carregada é mais recente que a publicada (v' + publicada + ').';
-            } catch (_) {
-                estado.textContent = 'Não foi possível consultar a versão. Tente novamente ou confira pelo link de instalação.';
-                instalar.textContent = 'Abrir no Tampermonkey';
-                instalar.hidden = false;
-            } finally {
-                consultando = false;
-                botao.disabled = false;
-            }
-        });
-        return host;
-    }
-    // END DC_UPDATE_CHECKER
 
     if (window.self !== window.top ||
         new URLSearchParams(window.location.search).has('dc_plate_panel')) return;
@@ -179,13 +36,15 @@
 
     const ID = 'dc-whatsapp-janela';
     // Versão do código carregado nesta página; manter igual ao @version.
-    const VERSAO_SCRIPT = '0.4.5';
+    const VERSAO_SCRIPT = '0.4.6';
     const DESTINO = 'https://web.whatsapp.com/';
+    const CHAVE_LAYOUT_CELULAR = 'cybertectools-whatsapp-modo-celular-v1';
     const REGISTRO = 'dcWhatsappJanela';
     const FOCO = ID + '-foco';
     const RESPOSTA = ID + '-resposta';
     const PRONTA = ID + '-pronta';
     const ABERTURA = ID + '-abertura';
+    const STATUS_CELULAR = ID + '-celular-versao';
     const PRAZO_ABERTURA = 120000;
     const PROTOCOLO = 2;
     const ehWhatsApp = window.location.hostname === 'web.whatsapp.com';
@@ -201,6 +60,15 @@
     let atualizacaoPendente = false;
     let acionando = false;
     let conversaPendente = null;
+
+    function publicarVersaoJanela() {
+        if (!document.documentElement) {
+            window.setTimeout(publicarVersaoJanela, 25);
+            return;
+        }
+        document.documentElement.setAttribute('data-dc-waj-versao', VERSAO_SCRIPT);
+    }
+    publicarVersaoJanela();
 
     function validarConversa(conversa) {
         return Boolean(conversa && typeof conversa.numero === 'string' &&
@@ -223,7 +91,10 @@
         const tela = window.screen;
         const areaLargura = tela.availWidth || 1920;
         const areaAltura = tela.availHeight || 820;
-        const largura = Math.min(areaLargura,
+        let modoPc = false;
+        try { modoPc = localStorage.getItem(CHAVE_LAYOUT_CELULAR) === 'pc'; }
+        catch (_) { /* Preferência opcional. */ }
+        const largura = modoPc ? Math.round(areaLargura * 0.40) : Math.min(areaLargura,
             Math.max(480, Math.min(640, Math.round(areaLargura * 0.32))));
         return {
             largura,
@@ -331,6 +202,65 @@
     }) : Promise.resolve(null);
     // Evita rejeição sem tratamento enquanto o usuário ainda não clicou.
     cadastro.catch(() => {});
+
+    // O modo celular não possui permissões do Tampermonkey. Ele publica sua
+    // versão no DOM, e este complemento mantém um sinal recente para a barra.
+    function registrarVersaoCelular() {
+        if (!ehWhatsApp || !temPermissoes || !document.documentElement) return;
+        const versao = document.documentElement.getAttribute('data-wac-versao');
+        if (!/^\d{1,6}(?:\.\d{1,6}){1,4}$/.test(versao || '')) return;
+        GM_setValue(STATUS_CELULAR, { versao, quando: Date.now() });
+    }
+    function iniciarRegistroVersaoCelular() {
+        if (!ehWhatsApp) return;
+        if (!document.documentElement) {
+            window.setTimeout(iniciarRegistroVersaoCelular, 25);
+            return;
+        }
+        new MutationObserver(registrarVersaoCelular).observe(document.documentElement, {
+            attributes: true, attributeFilter: ['data-wac-versao']
+        });
+        registrarVersaoCelular();
+        // Cobre a ordem em que os dois userscripts são iniciados pelo gerenciador.
+        cadastro.then(() => {
+            registrarVersaoCelular();
+            window.setTimeout(registrarVersaoCelular, 100);
+            window.setTimeout(registrarVersaoCelular, 500);
+        }).catch(() => {});
+        window.setInterval(registrarVersaoCelular, 30000);
+    }
+    iniciarRegistroVersaoCelular();
+
+    // Entrega à barra as versões realmente carregadas nas abas ainda abertas.
+    function iniciarPonteVersoesCarregadas() {
+        if (ehWhatsApp) return;
+        if (!document.documentElement) {
+            window.setTimeout(iniciarPonteVersoesCarregadas, 25);
+            return;
+        }
+        if (document.documentElement.hasAttribute('data-dc-component-versions-bridge')) return;
+        document.addEventListener('dc-component-versions-request', async (evento) => {
+            let pedido;
+            try { pedido = JSON.parse(evento.detail); } catch (_) { return; }
+            if (!pedido || typeof pedido.id !== 'string' ||
+                !/^[a-zA-Z0-9-]{1,80}$/.test(pedido.id)) return;
+            let celular = null;
+            try {
+                if (temPermissoes) {
+                    const status = await Promise.resolve(GM_getValue(STATUS_CELULAR, null));
+                    if (status && /^\d{1,6}(?:\.\d{1,6}){1,4}$/.test(status.versao || '') &&
+                        typeof status.quando === 'number' && Date.now() - status.quando < 90000) {
+                        celular = status.versao;
+                    }
+                }
+            } catch (_) { /* A barra ainda recebe a versão deste complemento. */ }
+            document.dispatchEvent(new CustomEvent('dc-component-versions-response', {
+                detail: JSON.stringify({ id: pedido.id, janela: VERSAO_SCRIPT, celular })
+            }));
+        });
+        document.documentElement.setAttribute('data-dc-component-versions-bridge', '1');
+    }
+    iniciarPonteVersoesCarregadas();
 
     // Consulta pública dos três arquivos pela extensão; preserva @grant none da
     // barra (incluindo o observador XHR do site) e do modo celular. Sem URL livre.
@@ -536,10 +466,6 @@
                     <button type="button" data-dc-waj="liberar" hidden>Já fechei: liberar abertura</button>
                 </div>
                 <p class="dc-waj-versao" title="Versão do complemento carregada nesta página">Janela v${VERSAO_SCRIPT}</p>`;
-            modal.querySelector('.dc-waj-versao').appendChild(criarVerificadorAtualizacao({
-                id: 'dc-waj-update', nome: 'DoctorCondo - WhatsApp em janela',
-                versao: VERSAO_SCRIPT, arquivo: 'DoctorCondo-WhatsApp-Janela.user.js', namespace: 'doctorcondo-whatsapp-janela'
-            }));
             modal.querySelector('[data-dc-waj="janela"]')
                 .addEventListener('click', () => abrirJanela('janela', conversaPendente));
             modal.querySelector('[data-dc-waj="fechar"]')

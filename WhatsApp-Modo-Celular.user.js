@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WhatsApp Web - Modo celular
 // @namespace    cybertectools-whatsapp-celular
-// @version      0.1.5
+// @version      0.1.6
 // @author       CYBERTECTOOLS
 // @description  Organiza o WhatsApp Web em uma coluna, alternando entre conversas e chat
 // @match        https://web.whatsapp.com/*
@@ -15,154 +15,19 @@
 (function () {
     'use strict';
 
-    // BEGIN DC_UPDATE_CHECKER
-    // Incorporado nos três userscripts por scripts/sync-update-checker.mjs.
-    // Sem execução de código remoto: somente lê o cabeçalho e oferece o link fixo.
-    function criarVerificadorAtualizacao({ id, nome, versao, arquivo, namespace }) {
-        const url = 'https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/' + arquivo;
-        const host = document.createElement('span');
-        host.id = id;
-        const raiz = host.attachShadow({ mode: 'open' });
-        raiz.innerHTML = `
-            <style>
-                :host { display:inline-flex; vertical-align:middle; flex-shrink:0; }
-                button, a { font:12px/1.4 Arial,sans-serif; cursor:pointer; }
-                .verificar { width:20px; height:16px; padding:0; border:0; border-radius:3px;
-                    background:transparent; color:inherit; font-size:15px; line-height:16px; }
-                .verificar:hover { background:#879a9633; }
-                :focus-visible { outline:2px solid #47a681; outline-offset:1px; }
-                dialog { box-sizing:border-box; width:min(410px,calc(100vw - 28px));
-                    max-height:calc(100dvh - 28px); overflow:auto; padding:22px;
-                    border:1px solid #a5bcb1; border-radius:12px; background:#fff; color:#243c31;
-                    box-shadow:0 12px 48px #0004; font:14px/1.5 Arial,sans-serif; white-space:normal; text-align:left; }
-                dialog::backdrop { background:#10271d88; }
-                h2 { margin:0 0 12px; font-size:18px; }
-                p { margin:0 0 12px; }
-                .nota { color:#52685d; font-size:12px; }
-                .acoes { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
-                .acoes button, .acoes a { display:inline-block; padding:7px 10px;
-                    background:#f4f8f6; color:#174f33; border:1px solid #b9cdc2;
-                    border-radius:6px; text-decoration:none; }
-                [hidden] { display:none !important; }
-            </style>
-            <button class="verificar" type="button">↻</button>
-            <dialog aria-labelledby="titulo" aria-describedby="estado">
-                <h2 id="titulo"></h2>
-                <p class="carregada"></p>
-                <p id="estado" role="status" aria-live="polite"></p>
-                <p class="nota">Após instalar, preserve formulários e rascunhos e recarregue a página para carregar a nova versão.</p>
-                <div class="acoes">
-                    <a class="instalar" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden></a>
-                    <button class="fechar" type="button">Fechar</button>
-                </div>
-            </dialog>`;
-        const botao = raiz.querySelector('.verificar');
-        const modal = raiz.querySelector('dialog');
-        const estado = raiz.querySelector('#estado');
-        const instalar = raiz.querySelector('.instalar');
-        botao.title = 'Verificar atualização — ' + nome;
-        botao.setAttribute('aria-label', botao.title);
-        raiz.querySelector('h2').textContent = nome;
-        raiz.querySelector('.carregada').textContent = 'Versão carregada: v' + versao;
-        instalar.href = url;
-        raiz.querySelector('.fechar').addEventListener('click', () => modal.close());
-        let consultando = false;
-
-        function consultarPelaPonte() {
-            return new Promise((resolve, reject) => {
-                const pedido = crypto.randomUUID();
-                const tempo = window.setTimeout(() => terminar(new Error('Sem resposta')), 17000);
-                function terminar(erro, texto) {
-                    window.clearTimeout(tempo);
-                    document.removeEventListener('dc-updates-response', receber);
-                    if (erro) reject(erro); else resolve(texto);
-                }
-                function receber(evento) {
-                    try {
-                        const resposta = JSON.parse(evento.detail);
-                        if (resposta.id !== pedido) return;
-                        if (typeof resposta.texto !== 'string') terminar(new Error('Falha na consulta'));
-                        else terminar(null, resposta.texto);
-                    } catch (_) { /* Ignorar eventos fora do protocolo. */ }
-                }
-                document.addEventListener('dc-updates-response', receber);
-                document.dispatchEvent(new CustomEvent('dc-updates-request', {
-                    detail: JSON.stringify({ id: pedido, arquivo })
-                }));
-            });
-        }
-
-        async function consultar() {
-            // O complemento de janela fornece a consulta via extensão nos dois sites.
-            if (document.documentElement.hasAttribute('data-dc-updates-bridge')) return consultarPelaPonte();
-            // Uso independente: consulta pública; bloqueios de rede/CSP têm saída manual.
-            const controlador = new AbortController();
-            const tempo = window.setTimeout(() => controlador.abort(), 12000);
-            try {
-                const resposta = await fetch(url + '?dc_update=' + Date.now(), {
-                    credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer',
-                    redirect: 'error', signal: controlador.signal
-                });
-                if (!resposta.ok) throw new Error('Resposta HTTP inválida');
-                return await resposta.text();
-            } finally { window.clearTimeout(tempo); }
-        }
-
-        function lerVersao(texto) {
-            if (typeof texto !== 'string' || texto.length > 1000000) throw new Error('Arquivo inválido');
-            const cabecalho = texto.match(/^\s*\/\/ ==UserScript==\r?\n([\s\S]*?)^\/\/ ==\/UserScript==/m)?.[1];
-            if (!cabecalho) throw new Error('Cabeçalho ausente');
-            const campo = (chave) => cabecalho.match(new RegExp('^// @' + chave + '\\s+([^\\r\\n]+)', 'm'))?.[1].trim();
-            const publicada = campo('version');
-            if (campo('name') !== nome || campo('namespace') !== namespace ||
-                !/^\d{1,6}(?:\.\d{1,6}){1,4}$/.test(publicada || '')) throw new Error('Identidade ou versão inválida');
-            return publicada;
-        }
-
-        function comparar(a, b) {
-            const partesA = a.split('.').map(Number), partesB = b.split('.').map(Number);
-            for (let i = 0; i < Math.max(partesA.length, partesB.length); i++) {
-                const diferenca = (partesA[i] || 0) - (partesB[i] || 0);
-                if (diferenca) return Math.sign(diferenca);
-            }
-            return 0;
-        }
-
-        botao.addEventListener('click', async (evento) => {
-            evento.preventDefault();
-            evento.stopPropagation();
-            if (!modal.open) modal.showModal();
-            if (consultando) return;
-            consultando = true;
-            botao.disabled = true;
-            instalar.hidden = true;
-            estado.textContent = 'Verificando atualização…';
-            try {
-                const publicada = lerVersao(await consultar());
-                const comparacao = comparar(publicada, versao);
-                if (comparacao > 0) {
-                    estado.textContent = 'Nova versão disponível: v' + publicada + '.';
-                    instalar.textContent = 'Instalar v' + publicada;
-                    instalar.hidden = false;
-                } else if (comparacao === 0) estado.textContent = 'Esta página já está na versão publicada: v' + publicada + '.';
-                else estado.textContent = 'A versão carregada é mais recente que a publicada (v' + publicada + ').';
-            } catch (_) {
-                estado.textContent = 'Não foi possível consultar a versão. Tente novamente ou confira pelo link de instalação.';
-                instalar.textContent = 'Abrir no Tampermonkey';
-                instalar.hidden = false;
-            } finally {
-                consultando = false;
-                botao.disabled = false;
-            }
-        });
-        return host;
-    }
-    // END DC_UPDATE_CHECKER
     if (window.top !== window.self) return;
 
     const ID = 'wac-modo-celular';
     // Versão do código carregado nesta página; manter igual ao @version.
-    const VERSAO_SCRIPT = '0.1.5';
+    const VERSAO_SCRIPT = '0.1.6';
+    function publicarVersao() {
+        if (!document.documentElement) {
+            window.setTimeout(publicarVersao, 25);
+            return;
+        }
+        document.documentElement.setAttribute('data-wac-versao', VERSAO_SCRIPT);
+    }
+    publicarVersao();
     const CHAVE = 'cybertectools-whatsapp-modo-celular-v1';
     const ATRIBUTO = 'data-wac-layout';
     const ATRIBUTO_SOBREPOSICAO = 'data-wac-sobreposicao';
@@ -392,7 +257,10 @@
         controles.querySelector('[data-acao="conversa"]').disabled = !chat;
         const modo = controles.querySelector('[data-acao="modo"]');
         const rotulo = compacto ? 'Modo PC' : 'Modo celular';
-        if (modo.textContent !== rotulo) modo.textContent = rotulo;
+        modo.setAttribute('aria-label', rotulo);
+        modo.title = rotulo;
+        modo.querySelector('[data-icone="pc"]').hidden = !compacto;
+        modo.querySelector('[data-icone="celular"]').hidden = compacto;
         host.classList.toggle('wac-pc', !aplicado);
         const aviso = controles.querySelector('[role="status"]');
         aviso.hidden = !(compacto && !aplicado);
@@ -406,6 +274,22 @@
 
     function guardarModo() {
         try { localStorage.setItem(CHAVE, compacto ? 'celular' : 'pc'); } catch (_) { /* Sem persistência. */ }
+    }
+
+    function redimensionarJanela() {
+        // Em Modo PC, o WhatsApp ocupa 40% à direita e deixa 60% para o sistema.
+        // Em Modo celular, restaura 32%, respeitando o intervalo de 480 a 640 px.
+        const tela = window.screen;
+        const areaLargura = tela.availWidth || 1920;
+        const areaAltura = tela.availHeight || 820;
+        const largura = compacto ? Math.min(areaLargura,
+            Math.max(480, Math.min(640, Math.round(areaLargura * 0.32)))) :
+            Math.round(areaLargura * 0.40);
+        try {
+            window.moveTo(Math.round((tela.availLeft || 0) + areaLargura - largura),
+                Math.round(tela.availTop || 0));
+            window.resizeTo(largura, areaAltura);
+        } catch (_) { /* Uma aba comum pode bloquear o redimensionamento. */ }
     }
 
     function selecionarChat(evento) {
@@ -505,6 +389,10 @@
                 button[aria-pressed="true"] { background:#225943; color:#b8f7d0; }
                 button:disabled { opacity:.4; cursor:default; }
                 button:focus-visible { outline:2px solid #8de6b2; outline-offset:-2px; }
+                [data-acao="modo"] { flex:0 0 44px; }
+                [data-acao="modo"] svg { display:block; width:21px; height:21px; margin:auto;
+                    fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round;
+                    stroke-linejoin:round; }
                 [data-acao="ajustar"] { flex:0 0 40px; font-size:21px; }
                 p { margin:0; padding:8px 12px; background:#172522; font-size:12px; }
                 .versao { display:flex; align-items:center; justify-content:flex-end; gap:4px;
@@ -519,25 +407,31 @@
             <nav aria-label="Visualização do WhatsApp">
                 <button type="button" data-acao="lista" aria-pressed="true">Conversas</button>
                 <button type="button" data-acao="conversa" aria-pressed="false">Conversa</button>
-                <button type="button" data-acao="modo">Modo PC</button>
+                <button type="button" data-acao="modo" aria-label="Modo PC" title="Modo PC">
+                    <svg data-icone="pc" viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="3" y="4" width="18" height="13" rx="1.5"></rect>
+                        <path d="M8 21h8M12 17v4"></path>
+                    </svg>
+                    <svg data-icone="celular" viewBox="0 0 24 24" aria-hidden="true" hidden>
+                        <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+                        <path d="M11 18h2"></path>
+                    </svg>
+                </button>
                 <button type="button" data-acao="ajustar" title="Ajustar janela para largura de celular"
                     aria-label="Ajustar janela para largura de celular">↔</button>
             </nav>
             <small class="versao" title="Versão do modo celular carregada nesta página">Celular v${VERSAO_SCRIPT}</small>`;
-        controles.querySelector('.versao').appendChild(criarVerificadorAtualizacao({
-            id: 'wac-update', nome: 'WhatsApp Web - Modo celular',
-            versao: VERSAO_SCRIPT, arquivo: 'WhatsApp-Modo-Celular.user.js', namespace: 'cybertectools-whatsapp-celular'
-        }));
         controles.addEventListener('click', (evento) => {
             const acao = evento.target.closest('button')?.dataset.acao;
             if (acao === 'lista') { vista = 'lista'; aguardandoChat = false; }
             if (acao === 'conversa') vista = 'conversa';
-            if (acao === 'modo') { compacto = !compacto; guardarModo(); }
+            if (acao === 'modo') {
+                compacto = !compacto;
+                guardarModo();
+                redimensionarJanela();
+            }
             if (acao === 'ajustar') {
-                // Navegadores podem permitir redimensionamento somente em pop-ups.
-                const borda = Math.max(0, window.outerWidth - window.innerWidth);
-                const altura = Math.min(window.screen.availHeight || 900, 900);
-                window.resizeTo(480 + borda, altura);
+                redimensionarJanela();
             }
             agendar();
         });

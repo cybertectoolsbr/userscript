@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - personal
 // @namespace    doctorcondo-local
-// @version      4.5.27
+// @version      4.5.28
 // @author       CYBERTECTOOLS
 // @description  Recolhe seções, cria atalho para veículos, facilita acessos, registra saídas e entrega de chaves em lote, e mostra anexos
 // @match        https://app2.doctorcondo.com.br/*
@@ -15,59 +15,162 @@
     'use strict';
 
     // BEGIN DC_UPDATE_CHECKER
-    // Incorporado nos três userscripts por scripts/sync-update-checker.mjs.
-    // Sem execução de código remoto: somente lê o cabeçalho e oferece o link fixo.
-    function criarVerificadorAtualizacao({ id, nome, versao, arquivo, namespace }) {
-        const url = 'https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/' + arquivo;
+    // Incorporado somente na barra por scripts/sync-update-checker.mjs.
+    // Sem execução de código remoto: lê os cabeçalhos e oferece links fixos.
+    function criarCentralAtualizacoes({ id, versaoBarra }) {
+        const base = 'https://raw.githubusercontent.com/cybertectoolsbr/userscript/main/';
+        const componentes = [
+            {
+                chave: 'barra', nome: 'Barra do operador', arquivo: 'DoctorCondo-Operador.user.js',
+                identidade: 'DoctorCondo - personal', namespace: 'doctorcondo-local',
+                carregada: versaoBarra, ausencia: 'Não carregada nesta aba'
+            },
+            {
+                chave: 'janela', nome: 'Janela do WhatsApp', arquivo: 'DoctorCondo-WhatsApp-Janela.user.js',
+                identidade: 'DoctorCondo - WhatsApp em janela', namespace: 'doctorcondo-whatsapp-janela',
+                ausencia: 'Não detectada nesta aba'
+            },
+            {
+                chave: 'celular', nome: 'Modo celular', arquivo: 'WhatsApp-Modo-Celular.user.js',
+                identidade: 'WhatsApp Web - Modo celular', namespace: 'cybertectools-whatsapp-celular',
+                ausencia: 'Abra ou recarregue o WhatsApp'
+            }
+        ];
         const host = document.createElement('span');
         host.id = id;
         const raiz = host.attachShadow({ mode: 'open' });
         raiz.innerHTML = `
             <style>
-                :host { display:inline-flex; vertical-align:middle; flex-shrink:0; }
-                button, a { font:12px/1.4 Arial,sans-serif; cursor:pointer; }
-                .verificar { width:20px; height:16px; padding:0; border:0; border-radius:3px;
-                    background:transparent; color:inherit; font-size:15px; line-height:16px; }
-                .verificar:hover { background:#879a9633; }
-                :focus-visible { outline:2px solid #47a681; outline-offset:1px; }
-                dialog { box-sizing:border-box; width:min(410px,calc(100vw - 28px));
-                    max-height:calc(100dvh - 28px); overflow:auto; padding:22px;
-                    border:1px solid #a5bcb1; border-radius:12px; background:#fff; color:#243c31;
-                    box-shadow:0 12px 48px #0004; font:14px/1.5 Arial,sans-serif; white-space:normal; text-align:left; }
-                dialog::backdrop { background:#10271d88; }
-                h2 { margin:0 0 12px; font-size:18px; }
-                p { margin:0 0 12px; }
-                .nota { color:#52685d; font-size:12px; }
-                .acoes { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
-                .acoes button, .acoes a { display:inline-block; padding:7px 10px;
-                    background:#f4f8f6; color:#174f33; border:1px solid #b9cdc2;
-                    border-radius:6px; text-decoration:none; }
-                [hidden] { display:none !important; }
+                :host { display:inline-flex; vertical-align:middle; flex-shrink:0; color:inherit; }
+                button, a { font:12px/1.4 Arial,sans-serif; }
+                button { cursor:pointer; }
+                .abrir { display:inline-flex; align-items:center; gap:4px; height:22px; padding:1px 6px;
+                    border:1px solid transparent; border-radius:5px; background:transparent; color:inherit; }
+                .abrir:hover { border-color:#879a9666; background:#879a9633; }
+                .icone { font-size:15px; line-height:1; }
+                :focus-visible { outline:2px solid #47a681; outline-offset:2px; }
+                dialog { box-sizing:border-box; width:min(700px,calc(100vw - 24px));
+                    max-height:calc(100dvh - 24px); overflow:auto; padding:0;
+                    border:1px solid #a5bcb1; border-radius:14px; background:#fff; color:#243c31;
+                    box-shadow:0 14px 54px #0005; font:14px/1.45 Arial,sans-serif;
+                    white-space:normal; text-align:left; }
+                dialog::backdrop { background:#10271d99; }
+                .cabecalho { padding:18px 20px 12px; border-bottom:1px solid #d8e3dd; }
+                h2 { margin:0 0 4px; font-size:20px; color:#173d2c; }
+                .introducao { margin:0; color:#52685d; font-size:12px; }
+                .lista { display:grid; gap:10px; padding:14px 20px; }
+                .item { display:grid; grid-template-columns:minmax(150px,1.35fr) minmax(100px,.8fr)
+                        minmax(100px,.8fr) minmax(128px,1fr) auto; align-items:center; gap:10px;
+                    padding:11px 12px; border:1px solid #dce7e1; border-radius:9px; background:#f9fbfa; }
+                .nome { font-weight:700; color:#193f2e; }
+                .rotulo { display:block; margin-bottom:1px; color:#65786e; font-size:10px;
+                    font-weight:400; text-transform:uppercase; letter-spacing:.03em; }
+                .valor { overflow-wrap:anywhere; }
+                .estado { font-size:12px; color:#52685d; }
+                .estado[data-tipo="nova"] { color:#9a4d00; font-weight:700; }
+                .estado[data-tipo="ok"] { color:#16713f; }
+                .estado[data-tipo="erro"] { color:#9b3030; }
+                .atualizar { display:inline-block; padding:6px 9px; border:1px solid #72aa8e;
+                    border-radius:6px; background:#edf8f2; color:#145b36; text-decoration:none;
+                    white-space:nowrap; }
+                .atualizar:hover { background:#dff2e8; }
+                .rodape { display:flex; justify-content:flex-end; gap:8px; padding:12px 20px 16px;
+                    border-top:1px solid #d8e3dd; }
+                .rodape button { padding:7px 11px; border:1px solid #afc6ba; border-radius:6px;
+                    background:#f4f8f6; color:#174f33; }
+                .rodape button:hover { background:#e7f1ec; }
+                .rodape button:disabled { cursor:wait; opacity:.65; }
+                @media (max-width:720px) {
+                    .abrir .texto { display:none; }
+                    .abrir { width:24px; justify-content:center; padding:0; }
+                    .item { grid-template-columns:1fr 1fr; }
+                    .nome, .estado { grid-column:1 / -1; }
+                    .atualizar { grid-column:2; justify-self:end; }
+                }
+                @media (max-width:430px) {
+                    .cabecalho, .lista, .rodape { padding-left:13px; padding-right:13px; }
+                    .item { grid-template-columns:1fr auto; }
+                    .publicada { grid-column:1; }
+                    .atualizar { grid-column:2; grid-row:3; }
+                }
             </style>
-            <button class="verificar" type="button">↻</button>
-            <dialog aria-labelledby="titulo" aria-describedby="estado">
-                <h2 id="titulo"></h2>
-                <p class="carregada"></p>
-                <p id="estado" role="status" aria-live="polite"></p>
-                <p class="nota">Após instalar, preserve formulários e rascunhos e recarregue a página para carregar a nova versão.</p>
-                <div class="acoes">
-                    <a class="instalar" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden></a>
+            <button class="abrir" type="button" title="Verificar atualizações dos scripts"
+                aria-label="Verificar atualizações dos scripts">
+                <span class="icone" aria-hidden="true">↻</span><span class="texto">Atualizações</span>
+            </button>
+            <dialog aria-labelledby="dc-updates-titulo">
+                <div class="cabecalho">
+                    <h2 id="dc-updates-titulo">Atualizações dos scripts</h2>
+                    <p class="introducao">As versões são consultadas somente quando este painel é aberto.</p>
+                </div>
+                <div class="lista" role="list"></div>
+                <div class="rodape">
+                    <button class="verificar" type="button">Verificar novamente</button>
                     <button class="fechar" type="button">Fechar</button>
                 </div>
             </dialog>`;
-        const botao = raiz.querySelector('.verificar');
+        const lista = raiz.querySelector('.lista');
+        for (const componente of componentes) {
+            const item = document.createElement('section');
+            item.className = 'item';
+            item.dataset.arquivo = componente.arquivo;
+            item.setAttribute('role', 'listitem');
+            item.innerHTML = `
+                <div class="nome"></div>
+                <div class="carregada"><span class="rotulo">Carregada</span><span class="valor">—</span></div>
+                <div class="publicada"><span class="rotulo">Publicada</span><span class="valor">—</span></div>
+                <div class="estado" role="status" aria-live="polite">Aguardando consulta</div>
+                <a class="atualizar" target="_blank" rel="noopener noreferrer"
+                    referrerpolicy="no-referrer">Atualizar</a>`;
+            item.querySelector('.nome').textContent = componente.nome;
+            item.querySelector('.atualizar').href = base + componente.arquivo;
+            lista.appendChild(item);
+        }
+        const botao = raiz.querySelector('.abrir');
         const modal = raiz.querySelector('dialog');
-        const estado = raiz.querySelector('#estado');
-        const instalar = raiz.querySelector('.instalar');
-        botao.title = 'Verificar atualização — ' + nome;
-        botao.setAttribute('aria-label', botao.title);
-        raiz.querySelector('h2').textContent = nome;
-        raiz.querySelector('.carregada').textContent = 'Versão carregada: v' + versao;
-        instalar.href = url;
+        const repetir = raiz.querySelector('.verificar');
         raiz.querySelector('.fechar').addEventListener('click', () => modal.close());
+        modal.addEventListener('click', (evento) => {
+            if (evento.target === modal) modal.close();
+        });
         let consultando = false;
 
-        function consultarPelaPonte() {
+        function itemDe(componente) {
+            return lista.querySelector('[data-arquivo="' + componente.arquivo + '"]');
+        }
+
+        function consultarVersoesCarregadas() {
+            const resultado = {
+                barra: versaoBarra,
+                janela: document.documentElement.getAttribute('data-dc-waj-versao') || null,
+                celular: null
+            };
+            return new Promise((resolve) => {
+                const pedido = crypto.randomUUID();
+                const tempo = window.setTimeout(() => terminar(), 1800);
+                function terminar(resposta) {
+                    window.clearTimeout(tempo);
+                    document.removeEventListener('dc-component-versions-response', receber);
+                    if (resposta) {
+                        if (typeof resposta.janela === 'string') resultado.janela = resposta.janela;
+                        if (typeof resposta.celular === 'string') resultado.celular = resposta.celular;
+                    }
+                    resolve(resultado);
+                }
+                function receber(evento) {
+                    try {
+                        const resposta = JSON.parse(evento.detail);
+                        if (resposta.id === pedido) terminar(resposta);
+                    } catch (_) { /* Ignorar eventos fora do protocolo. */ }
+                }
+                document.addEventListener('dc-component-versions-response', receber);
+                document.dispatchEvent(new CustomEvent('dc-component-versions-request', {
+                    detail: JSON.stringify({ id: pedido })
+                }));
+            });
+        }
+
+        function consultarPelaPonte(arquivo) {
             return new Promise((resolve, reject) => {
                 const pedido = crypto.randomUUID();
                 const tempo = window.setTimeout(() => terminar(new Error('Sem resposta')), 17000);
@@ -91,29 +194,33 @@
             });
         }
 
-        async function consultar() {
-            // O complemento de janela fornece a consulta via extensão nos dois sites.
-            if (document.documentElement.hasAttribute('data-dc-updates-bridge')) return consultarPelaPonte();
-            // Uso independente: consulta pública; bloqueios de rede/CSP têm saída manual.
-            const controlador = new AbortController();
-            const tempo = window.setTimeout(() => controlador.abort(), 12000);
-            try {
-                const resposta = await fetch(url + '?dc_update=' + Date.now(), {
-                    credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer',
-                    redirect: 'error', signal: controlador.signal
-                });
-                if (!resposta.ok) throw new Error('Resposta HTTP inválida');
-                return await resposta.text();
-            } finally { window.clearTimeout(tempo); }
+        async function consultarArquivo(componente) {
+            const url = base + componente.arquivo;
+            let texto;
+            if (document.documentElement.hasAttribute('data-dc-updates-bridge')) {
+                texto = await consultarPelaPonte(componente.arquivo);
+            } else {
+                const controlador = new AbortController();
+                const tempo = window.setTimeout(() => controlador.abort(), 12000);
+                try {
+                    const resposta = await fetch(url + '?dc_update=' + Date.now(), {
+                        credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer',
+                        redirect: 'error', signal: controlador.signal
+                    });
+                    if (!resposta.ok) throw new Error('Resposta HTTP inválida');
+                    texto = await resposta.text();
+                } finally { window.clearTimeout(tempo); }
+            }
+            return lerVersao(texto, componente);
         }
 
-        function lerVersao(texto) {
+        function lerVersao(texto, componente) {
             if (typeof texto !== 'string' || texto.length > 1000000) throw new Error('Arquivo inválido');
             const cabecalho = texto.match(/^\s*\/\/ ==UserScript==\r?\n([\s\S]*?)^\/\/ ==\/UserScript==/m)?.[1];
             if (!cabecalho) throw new Error('Cabeçalho ausente');
             const campo = (chave) => cabecalho.match(new RegExp('^// @' + chave + '\\s+([^\\r\\n]+)', 'm'))?.[1].trim();
             const publicada = campo('version');
-            if (campo('name') !== nome || campo('namespace') !== namespace ||
+            if (campo('name') !== componente.identidade || campo('namespace') !== componente.namespace ||
                 !/^\d{1,6}(?:\.\d{1,6}){1,4}$/.test(publicada || '')) throw new Error('Identidade ou versão inválida');
             return publicada;
         }
@@ -127,39 +234,78 @@
             return 0;
         }
 
-        botao.addEventListener('click', async (evento) => {
+        function mostrarCarregada(componente, versao) {
+            const item = itemDe(componente);
+            item.querySelector('.carregada .valor').textContent = versao ? 'v' + versao : componente.ausencia;
+            return versao;
+        }
+
+        function mostrarResultado(componente, carregada, resultado) {
+            const item = itemDe(componente);
+            const publicada = item.querySelector('.publicada .valor');
+            const estado = item.querySelector('.estado');
+            if (resultado.status === 'rejected') {
+                publicada.textContent = 'Falha na consulta';
+                estado.textContent = 'Use Atualizar para abrir o instalador';
+                estado.dataset.tipo = 'erro';
+                return;
+            }
+            publicada.textContent = 'v' + resultado.value;
+            if (!carregada) {
+                estado.textContent = 'Script não detectado';
+                estado.dataset.tipo = 'erro';
+                return;
+            }
+            const diferenca = comparar(resultado.value, carregada);
+            if (diferenca > 0) {
+                estado.textContent = 'Nova versão disponível';
+                estado.dataset.tipo = 'nova';
+            } else if (diferenca === 0) {
+                estado.textContent = 'Atualizada';
+                estado.dataset.tipo = 'ok';
+            } else {
+                estado.textContent = 'Carregada mais recente';
+                estado.dataset.tipo = 'ok';
+            }
+        }
+
+        async function verificar() {
+            if (consultando) return;
+            consultando = true;
+            repetir.disabled = true;
+            for (const componente of componentes) {
+                const item = itemDe(componente);
+                item.querySelector('.publicada .valor').textContent = 'Consultando…';
+                const estado = item.querySelector('.estado');
+                estado.textContent = 'Verificando';
+                estado.removeAttribute('data-tipo');
+            }
+            try {
+                const carregadas = await consultarVersoesCarregadas();
+                const consultas = await Promise.allSettled(componentes.map(consultarArquivo));
+                componentes.forEach((componente, indice) => {
+                    const carregada = mostrarCarregada(componente, carregadas[componente.chave]);
+                    mostrarResultado(componente, carregada, consultas[indice]);
+                });
+            } finally {
+                consultando = false;
+                repetir.disabled = false;
+            }
+        }
+
+        botao.addEventListener('click', (evento) => {
             evento.preventDefault();
             evento.stopPropagation();
             if (!modal.open) modal.showModal();
-            if (consultando) return;
-            consultando = true;
-            botao.disabled = true;
-            instalar.hidden = true;
-            estado.textContent = 'Verificando atualização…';
-            try {
-                const publicada = lerVersao(await consultar());
-                const comparacao = comparar(publicada, versao);
-                if (comparacao > 0) {
-                    estado.textContent = 'Nova versão disponível: v' + publicada + '.';
-                    instalar.textContent = 'Instalar v' + publicada;
-                    instalar.hidden = false;
-                } else if (comparacao === 0) estado.textContent = 'Esta página já está na versão publicada: v' + publicada + '.';
-                else estado.textContent = 'A versão carregada é mais recente que a publicada (v' + publicada + ').';
-            } catch (_) {
-                estado.textContent = 'Não foi possível consultar a versão. Tente novamente ou confira pelo link de instalação.';
-                instalar.textContent = 'Abrir no Tampermonkey';
-                instalar.hidden = false;
-            } finally {
-                consultando = false;
-                botao.disabled = false;
-            }
+            verificar();
         });
+        repetir.addEventListener('click', verificar);
         return host;
     }
     // END DC_UPDATE_CHECKER
 
     // Mantida em sincronia com @version pelo teste da barra.
-    const VERSAO_SCRIPT = '4.5.27';
+    const VERSAO_SCRIPT = '4.5.28';
     const CHAVE_ROTA_CAMERA_PLACA = 'dc-operator-plate-camera-route';
     const PARAMETRO_CAMERA_EM_QUADRO = 'dc_plate_panel';
     const CHAVE_NOTAS_OPERADOR = 'dc-operator-notes-v1';
@@ -3893,9 +4039,8 @@
             const ferramentas = document.createElement('span');
             ferramentas.id = 'dc-operator-tools';
             ferramentas.appendChild(versao);
-            ferramentas.appendChild(criarVerificadorAtualizacao({
-                id: 'dc-operator-update', nome: 'DoctorCondo - personal',
-                versao: VERSAO_SCRIPT, arquivo: 'DoctorCondo-Operador.user.js', namespace: 'doctorcondo-local'
+            ferramentas.appendChild(criarCentralAtualizacoes({
+                id: 'dc-operator-update', versaoBarra: VERSAO_SCRIPT
             }));
             faixa.appendChild(ferramentas);
         }
