@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DoctorCondo - WhatsApp em janela
 // @namespace    doctorcondo-whatsapp-janela
-// @version      0.4.4
+// @version      0.4.5
 // @author       CYBERTECTOOLS
 // @description  Reutiliza uma janela do WhatsApp Web pela barra, pelos moradores e pelo compartilhamento dos horários
 // @match        https://app2.doctorcondo.com.br/*
@@ -179,7 +179,7 @@
 
     const ID = 'dc-whatsapp-janela';
     // Versão do código carregado nesta página; manter igual ao @version.
-    const VERSAO_SCRIPT = '0.4.4';
+    const VERSAO_SCRIPT = '0.4.5';
     const DESTINO = 'https://web.whatsapp.com/';
     const REGISTRO = 'dcWhatsappJanela';
     const FOCO = ID + '-foco';
@@ -217,6 +217,29 @@
         if (conversa.numero) url.searchParams.set('phone', conversa.numero);
         if (conversa.mensagem) url.searchParams.set('text', conversa.mensagem);
         return url.href;
+    }
+
+    function calcularGeometriaJanela() {
+        const tela = window.screen;
+        const areaLargura = tela.availWidth || 1920;
+        const areaAltura = tela.availHeight || 820;
+        const largura = Math.min(areaLargura,
+            Math.max(480, Math.min(640, Math.round(areaLargura * 0.32))));
+        return {
+            largura,
+            altura: areaAltura,
+            esquerda: Math.round((tela.availLeft || 0) + areaLargura - largura),
+            topo: Math.round(tela.availTop || 0)
+        };
+    }
+
+    function ajustarJanelaAtual() {
+        if (!ehWhatsApp) return;
+        const geometria = calcularGeometriaJanela();
+        try {
+            window.moveTo(geometria.esquerda, geometria.topo);
+            window.resizeTo(geometria.largura, geometria.altura);
+        } catch (_) { /* O navegador pode recusar em uma aba comum. */ }
     }
 
     function interpretarLinkWhatsApp(link) {
@@ -290,6 +313,7 @@
                 try {
                     if (pedido.acao === 'conversa') destino = urlConversa(pedido.conversa);
                     window.focus();
+                    window.setTimeout(ajustarJanelaAtual, 0);
                 } catch (_) { sucesso = false; }
                 GM_setValue(RESPOSTA, { pedido: pedido.id, sucesso });
                 // A resposta confirma o recebimento, não login/conversa carregada.
@@ -301,6 +325,7 @@
         if (ehWhatsApp) {
             await Promise.resolve(GM_deleteValue(ABERTURA));
             GM_setValue(PRONTA, { id: aba[REGISTRO].id, quando: Date.now() });
+            window.setTimeout(ajustarJanelaAtual, 0);
         }
         return aba;
     }) : Promise.resolve(null);
@@ -449,13 +474,7 @@
     }
 
     function abrirNovaJanela(modo, conversa) {
-        const tela = window.screen;
-        const largura = Math.min(480, tela.availWidth || 480);
-        const altura = Math.min(820, tela.availHeight || 820);
-        const esquerda = Math.round((tela.availLeft || 0) +
-            Math.max(0, ((tela.availWidth || largura) - largura) / 2));
-        const topo = Math.round((tela.availTop || 0) +
-            Math.max(0, ((tela.availHeight || altura) - altura) / 2));
+        const geometria = calcularGeometriaJanela();
         let janela;
 
         try {
@@ -468,8 +487,8 @@
             // A consulta à extensão ocorre dentro da ativação iniciada pelo clique.
             // Isolar a janela ANTES de carregar o serviço externo.
             janela = window.open('about:blank', '_blank',
-                `popup=yes,width=${largura},height=${altura},` +
-                `left=${esquerda},top=${topo},resizable=yes,scrollbars=yes`);
+                `popup=yes,width=${geometria.largura},height=${geometria.altura},` +
+                `left=${geometria.esquerda},top=${geometria.topo},resizable=yes,scrollbars=yes`);
             if (!janela) {
                 mostrarOpcoes(true);
                 return false;
